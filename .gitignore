@@ -3,6 +3,8 @@ TODOs.md
 examples/debug.py
 examples/test.py
 
+venv/
+
 # NumPy saves and videos
 results/
 tmp/
