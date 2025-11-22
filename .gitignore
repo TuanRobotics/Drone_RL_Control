@@ -4,6 +4,8 @@ examples/debug.py
 examples/test.py
 
 venv/
+linear_sys.ipynb
+docs/
 
 # NumPy saves and videos
 results/

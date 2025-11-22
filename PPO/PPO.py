@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -5,18 +7,28 @@ import numpy as np
 from torch.distributions import Normal
 import gym
 
+# Actor
 class Actor(nn.Module):
-
+    '''
+    Policy network that outputs mean and std for Gaussian distribution for continuous action spaces.
+    Mean (μ): These values represent the mean of the Gaussian distribution for each action dimension. 
+    The mean is usually directly output by a neural network layer.
+    Standard Deviation (σ): These values represent the standard deviation
+    of the Gaussian distribution for each action dimension
+    '''
     def __init__(self, state_dim, action_dim, hidden_dim=256):
         super(Actor, self).__init__()
 
         self.network = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU()
+            nn.Tanh()
         )
+        # Output mean and log_std for Gaussian policy
+        # Mean head
         self.mean_head = nn.Linear(hidden_dim, action_dim)
+        # Log std head
         self.log_std_head = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, state):
@@ -24,33 +36,38 @@ class Actor(nn.Module):
         mean = self.mean_head(x)
         log_std = self.log_std_head(x)
         # Clamp log_std to prevent numerical instability
-        log_std = torch.clamp(log_std, -20, 2)
-        std = torch.exp(log_std)
+        log_std = torch.clamp(log_std, -20, 5)
+        std = torch.exp(log_std) # standard deviation of Gaussian distribution
         return mean, std
     
+    # Sample action from the policy
     def get_action(self, state, deterministic=False):
-            """Sample action from policy"""
-            mean, std = self.forward(state)
-            
-            if deterministic:
-                return mean, None, None
-            
+        """Sample action from policy"""
+        mean, std = self.forward(state)
+        dist = Normal(mean, std)
+        
+        if deterministic:
+            action = mean
+        else:
             # Create Gaussian distribution
+            # Sample action from the distribution
             dist = Normal(mean, std)
             action = dist.sample()
-            log_prob = dist.log_prob(action).sum(dim=-1, keepdim=True)
-            
-            return action, log_prob, dist.entropy().sum(dim=-1, keepdim=True)
+        
+        log_prob = dist.log_prob(action).sum(dim=-1, keepdim=True)
+        
+        return action, log_prob, dist.entropy().sum(dim=-1, keepdim=True)
+          
     
     def evaluate_actions(self, state, action):
-            """Evaluate log probability and entropy of given actions"""
-            mean, std = self.forward(state)
-            dist = Normal(mean, std)
-            
-            log_prob = dist.log_prob(action).sum(dim=-1, keepdim=True)
-            entropy = dist.entropy().sum(dim=-1, keepdim=True)
-            
-            return log_prob, entropy
+        """Evaluate log probability and entropy of given actions"""
+        mean, std = self.forward(state)
+        dist = Normal(mean, std)
+        
+        log_prob = dist.log_prob(action).sum(dim=-1, keepdim=True)
+        entropy = dist.entropy().sum(dim=-1, keepdim=True)
+        
+        return log_prob, entropy
 
 # Critic 
 class Critic(nn.Module):
@@ -79,7 +96,15 @@ class PPOMemory:
         self.dones = []
         self.log_probs = []
         self.values = []
-        
+    '''
+    Variables:
+    states: List to store states observed during the episode.
+    actions: List to store actions taken by the agent.
+    rewards: List to store rewards received after taking actions.
+    dones: List to store done flags indicating episode termination.
+    log_probs: List to store log probabilities of the actions taken.
+    values: List to store value estimates from the critic for the states.
+    '''
     def store(self, state, action, reward, done, log_prob, value):
         self.states.append(state)
         self.actions.append(action)
