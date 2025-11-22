@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from torch.distributions import Normal
 import gym
+
+# Remember to clip action in range of env action space when using get_action()
 
 # Actor
 class Actor(nn.Module):
@@ -36,7 +37,7 @@ class Actor(nn.Module):
         mean = self.mean_head(x)
         log_std = self.log_std_head(x)
         # Clamp log_std to prevent numerical instability
-        log_std = torch.clamp(log_std, -20, 5)
+        log_std = torch.clamp(log_std, -20, 2)
         std = torch.exp(log_std) # standard deviation of Gaussian distribution
         return mean, std
     
@@ -53,12 +54,11 @@ class Actor(nn.Module):
             # Sample action from the distribution
             dist = Normal(mean, std)
             action = dist.sample()
-        
+        # Calculate log probability of the action
         log_prob = dist.log_prob(action).sum(dim=-1, keepdim=True)
         
         return action, log_prob, dist.entropy().sum(dim=-1, keepdim=True)
           
-    
     def evaluate_actions(self, state, action):
         """Evaluate log probability and entropy of given actions"""
         mean, std = self.forward(state)
@@ -267,13 +267,13 @@ class PPO:
                 # Compute ratio for PPO
                 ratio = torch.exp(new_log_probs - batch_old_log_probs)
                 
-                # Clipped surrogate objective
-                surr1 = ratio * batch_advantages
+                # Clipped surrogate objective L(s,a,theta_k, theta)
+                surr1 = ratio * batch_advantages 
                 surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * batch_advantages
-                actor_loss = -torch.min(surr1, surr2).mean()
+                actor_loss = -torch.min(surr1, surr2).mean() # L(s,a,theta_k, theta)
                 
                 # Value loss
-                value_loss = nn.MSELoss()(new_values, batch_returns)
+                value_loss = nn.MSELoss()(new_values, batch_returns) # Mean Squared Error loss for value function
                 
                 # Entropy bonus
                 entropy_loss = -entropy.mean()
