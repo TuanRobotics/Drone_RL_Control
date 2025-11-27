@@ -6,6 +6,7 @@ examples/test.py
 venv/
 linear_sys.ipynb
 docs/
+logs/
 
 # NumPy saves and videos
 results/
