@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 import numpy as np
 import torch
-from PPO.ppo_agent import PPO
+from PPO.ppo_agent import PPOAgent
 
 from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
@@ -76,7 +76,7 @@ def train():
     log_running_episodes = 0
     
     # Initialize PPO agent
-    ppo_agent = PPO(
+    ppo_agent = PPOAgent(
         state_dim=state_dim,
         action_dim=action_dim,
         hidden_dim=hidden_dim,
