@@ -93,8 +93,18 @@ class BaseRLAviary(BaseAviary):
         #### Set a limit on the maximum target speed ###############
         if act == ActionType.VEL:
             self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000/3600)
-
-    ################################################################################
+        #### Racing setup ##########################################
+        self.w = 2.0 # 
+        self.h = 1.0 
+        self.offset = 0.1
+        self.racing_setup = { 0: [[0, 1, self.h/2+self.offset], [-self.w/2, 1, self.h+self.offset], [self.w/2, 1, self.h+self.offset], [-self.w/2, 1, self.offset], [self.w/2, 1, self.offset]],
+                            1: [[0.5, 3, self.h/2+self.offset], [-self.w/2+0.5, 3, self.h+self.offset], [self.w/2+0.5, 3, self.h+self.offset], [-self.w/2+0.5, 3, self.offset], [self.w/2+0.5, 3, self.offset]],
+                            2: [[-0.5, 5, self.h/2+self.offset], [-self.w/2-0.5, 5, self.h+self.offset], [self.w/2-0.5, 5, self.h+self.offset], [-self.w/2-0.5, 5, self.offset], [self.w/2-0.5, 5, self.offset]],
+                            3: [[0.5, 7, self.h/2+self.offset], [-self.w/2+0.5, 7, self.h+self.offset], [self.w/2+0.5, 7, self.h+self.offset], [-self.w/2+0.5, 7, self.offset], [self.w/2+0.5, 7, self.offset]],
+                            4: [[1.0, 9, self.h/2+self.offset], [-self.w/2+1.0, 9, self.h+self.offset], [self.w/2+1.0, 9, self.h+self.offset], [-self.w/2+1.0, 9, self.offset], [self.w/2+1.0, 9, self.offset]]
+                            }
+        self.prev_pos = self._getDroneStateVector(0)[:3]
+        self.passing_flag = [False for _ in range(len(self.racing_setup.keys()))]
 
     def _addObstacles(self):
         """Add obstacles to the environment.
@@ -303,23 +313,43 @@ class BaseRLAviary(BaseAviary):
                                           frame_num=int(self.step_counter/self.IMG_CAPTURE_FREQ)
                                           )
             return np.array([self.rgb[i] for i in range(self.NUM_DRONES)]).astype('float32')
+        
+        # Make obs for drone racing 
         elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
             #### OBS SPACE OF SIZE 12
-            obs_12 = np.zeros((self.NUM_DRONES,12))
             for i in range(self.NUM_DRONES):
                 #obs = self._clipAndNormalizeState(self._getDroneStateVector(i))
                 obs = self._getDroneStateVector(i)
-                # 
-                obs_12[i, :] = np.hstack([obs[0:3], obs[7:10], obs[10:13], obs[13:16]]).reshape(12,)
-            ret = np.array([obs_12[i, :] for i in range(self.NUM_DRONES)]).astype('float32')
-            return ret 
-            # ret = np.array([obs_12[i, :] for i in range(self.NUM_DRONES)]).astype('float32')
-            #### Add action buffer to observation #######################
-            # Comment it 
-            # for i in range(self.ACTION_BUFFER_SIZE):
-            #     ret = np.hstack([ret, np.array([self.action_buffer[i][j, :] for j in range(self.NUM_DRONES)])])
-            # return ret
-            ############################################################
+                rot_matrix = np.array(p.getMatrixFromQuaternion(obs[3:7]))
+
+                obs_quad = list(obs[10:13]) # linear velocity
+                obs_quad.extend(rot_matrix)
+                assert len(obs_quad) == 12
+                for i, key in enumerate(self.racing_setup.keys()):
+                    if self.passing_flag[i]:
+                        continue
+                    for j in range(4):
+                        # consider the 4 conner points of the gate
+                        # gate_pos = np.array(self.racing_setup[key][j+1])
+                        # distance = np.linalg.norm(obs[0:3] - gate_pos)
+                        relative_pos = np.array(self.racing_setup[key][j+1]) - obs[:3] # 12 elements for 4 conner points
+                        obs_quad.extend(relative_pos)
+                    # 
+                    if self.passing_flag[3]:
+                        for j in range(4):
+                            relative_pos = np.array(self.racing_setup[key][j+1]) - obs[:3]
+                            obs_quad.extend(relative_pos)
+
+                    if len(obs_quad) >= 36: # 2 consecutive gate
+                        break
+                # If passed all gates, make fake obs
+                if self.passing_flag[4]:
+                    obs_36 = np.zeros((1,36)) # fake obs
+                else:
+                    obs_36 = np.expand_dims(np.array(obs_quad), axis=0)#.reshape(36,) # for racing
+            ret = obs_36.astype('float32')
+
+            return ret
         else:
             print("[ERROR] in BaseRLAviary._computeObs()")
