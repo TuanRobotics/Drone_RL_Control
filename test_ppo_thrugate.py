@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import time
 from datetime import datetime
@@ -16,77 +15,79 @@ from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
 
+#################################### Testing ###################################
 def test():
     print("============================================================================================")
 
     ################## hyperparameters ##################
-    hidden_dim = 256
-    lr_actor = 3e-4
-    lr_critic = 1e-3
-    gamma = 0.99
-    gae_lambda = 0.95
-    clip_epsilon = 0.2
-    entropy_coef = 0.01
-    value_coef = 0.5
-    max_grad_norm = 0.5
-    K_epochs = 80
-    batch_size = 64
 
-    render = True
-    total_test_episodes = 10    # Số episode để test
+    max_ep_len = 1000           # max timesteps in one episode
+    action_std = 0.1            # set same std for action distribution which was used while saving
+
+    render = True              # render environment on screen
+    frame_delay = 0             # if required; add delay b/w frames
+
+    total_test_episodes = 10    # total num of testing episodes
+
+    K_epochs = 80               # update policy for K epochs
+    eps_clip = 0.2              # clip parameter for PPO
+    gamma = 0.99                # discount factor
+
+    lr_actor = 0.0003           # learning rate for actor
+    lr_critic = 0.001           # learning rate for critic
+
     #####################################################
-    
     DEFAULT_GUI = True
-    DEFAULT_RECORD_VIDEO = True
-    DEFAULT_OUTPUT_FOLDER = 'results_ppo_thrugate/'
-    DEFAULT_OBS = ObservationType('kin')
-    DEFAULT_ACT = ActionType('rpm')
-    
+    DEFAULT_RECORD_VIDEO = False
+    DEFAULT_OUTPUT_FOLDER = 'results'
+    DEFAULT_COLAB = False
+
+    DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
+    DEFAULT_ACT = ActionType('rpm') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
     filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'recording_'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
     if not os.path.exists(filename):
+        print(filename)
         os.makedirs(filename+'/')
 
-    # Initialize environment
     env = FlyThruGateAvitary(gui=DEFAULT_GUI,
                            obs=DEFAULT_OBS,
                            act=DEFAULT_ACT,
                            record=DEFAULT_RECORD_VIDEO)
 
-    # State and action dimensions
+    # state space dimension
     state_dim = 12
+
+    # action space dimension
+
     action_dim = 4
-    
-    # Initialize PPO agent
-    ppo_agent = PPO(
-        state_dim=state_dim,
-        action_dim=action_dim,
-        hidden_dim=hidden_dim,
-        lr_actor=lr_actor,
-        lr_critic=lr_critic,
-        gamma=gamma,
-        gae_lambda=gae_lambda,
-        clip_epsilon=clip_epsilon,
-        entropy_coef=entropy_coef,
-        value_coef=value_coef,
-        max_grad_norm=max_grad_norm,
-        epochs=K_epochs,
-        batch_size=batch_size
-    )
-    
-    # Load pretrained model
-    checkpoint_path = "log_dir/thrugate/ep_456120_ts_2980000_ppo_gate.pth"
-    print("Loading network from: " + checkpoint_path)
+
+    # initialize a PPO agent
+    ppo_agent = PPO(state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, action_std)
+
+    # preTrained weights directory
+
+    random_seed = 0             #### set this to load a particular checkpoint trained on random seed
+    run_num_pretrained = 0      #### set this to load a particular checkpoint num
+
+    checkpoint_path = "log_dir/thrugate/2015_ppo_drone.pth"
+    print("loading network from : " + checkpoint_path)
+
     ppo_agent.load(checkpoint_path)
+
     print("--------------------------------------------------------------------------------------------")
 
     test_running_reward = 0
+
+    # for ep in range(1, total_test_episodes+1):
+    #     ep_reward = 0
+    #     state = env.reset()
 
     obs, info = env.reset(seed=42, options={})
     ep_reward = 0
     start_time = datetime.now().replace(microsecond=0)
     start = time.time()
-    for i in range((env.EPISODE_LEN_SEC+30)*env.CTRL_FREQ):
-        action, _, _= ppo_agent.select_action(obs)
+    for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
+        action = ppo_agent.select_action(obs)
         action = np.expand_dims(action, axis=0)
         obs, reward, terminated, truncated, info = env.step(action)
         ep_reward += reward
@@ -96,19 +97,21 @@ def test():
             break
 
     # clear buffer
-    ppo_agent.memory.clear()
+    ppo_agent.buffer.clear()
 
     test_running_reward +=  ep_reward
     print('Episode: {} \t\t Reward: {}'.format(0, round(ep_reward, 2)))
     ep_reward = 0
 
     env.close()
-    
-    print("\n============================================================================================")
-    avg_test_reward = test_running_reward / total_test_episodes
-    avg_test_reward = round(avg_test_reward, 2)
-    print(f"Average test reward: {avg_test_reward}")
-    print("============================================================================================")
+
+# print("============================================================================================")
+#
+# avg_test_reward = test_running_reward / total_test_episodes
+# avg_test_reward = round(avg_test_reward, 2)
+# print("average test reward : " + str(avg_test_reward))
+#
+# print("============================================================================================")
 
 
 if __name__ == '__main__':
