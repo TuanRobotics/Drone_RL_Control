@@ -1,355 +1,338 @@
-#!/usr/bin/env python3
-import copy
-import random
-from dataclasses import dataclass
-from typing import Tuple
-
 import numpy as np
+import random
 import torch
+from collections import namedtuple, deque
 import torch.nn as nn
-import torch.optim as optim
-import gym  # hoặc gymnasium, tùy bạn dùng cái nào
+import torch.nn.functional as F
+from torch.distributions import Normal
+from TD3.noise import DecayingOrnsteinUhlenbeckNoise, GaussianNoise
+import os 
+from itertools import chain
 
 
-# ============================================================
-# Utils
-# ============================================================
+class ReplayBuffer:
+    """Simle experience replay buffer for deep reinforcement algorithms."""
+    def __init__(self, action_size, buffer_size, batch_size, device):
+        self.action_size = action_size
+        self.memory = deque(maxlen=buffer_size)  
+        self.device = device
+        self.batch_size = batch_size
+        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+    
+    def add(self, state, action, reward, next_state, done):
+        e = self.experience(state, action, reward, next_state, done)
+        self.memory.append(e)
+    
+    def sample(self):
+        experiences = random.sample(self.memory, k=self.batch_size)
 
-def fanin_init(layer):
-    if isinstance(layer, nn.Linear):
-        lim = 1. / np.sqrt(layer.weight.data.size(0))
-        nn.init.uniform_(layer.weight.data, -lim, lim)
-        nn.init.uniform_(layer.bias.data, -lim, lim)
+        states = torch.from_numpy(np.stack([e.state for e in experiences if e is not None], axis=0)).float().to(self.device)
+        actions = torch.from_numpy(np.stack([e.action for e in experiences if e is not None], axis=0)).float().to(self.device)
+        rewards = torch.from_numpy(np.stack([e.reward for e in experiences if e is not None], axis=0)).float().unsqueeze(-1).to(self.device)
+        next_states = torch.from_numpy(np.stack([e.next_state for e in experiences if e is not None], axis=0)).float().to(self.device)
+        dones = torch.from_numpy(np.stack([e.done for e in experiences if e is not None], axis=0).astype(np.uint8)).float().unsqueeze(-1).to(self.device)
 
+        return (states, actions, rewards, next_states, dones)
 
-# ============================================================
-# Networks
-# ============================================================
+    def __len__(self):
+        return len(self.memory)
+    
 
-class Actor(nn.Module):
-    """
-    Deterministic policy: state -> action in [-1, 1]^action_dim
-    Scale về range của env sẽ làm ở TD3Agent.
-    """
-    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 256):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, action_dim),
-        )
-        self.apply(fanin_init)
+class MLPEncoder(nn.Module):
+    def __init__(self, input_size, hidden_size, ff_size):
+        super(MLPEncoder, self).__init__()
+        self.embedding = nn.Linear(input_size, hidden_size)
+        nn.init.xavier_uniform_(self.embedding.weight)
+        nn.init.zeros_(self.embedding.bias)
+        self.block = nn.Sequential(nn.LayerNorm(hidden_size), nn.Linear(hidden_size, ff_size), nn.GELU(), nn.Linear(ff_size, hidden_size))
 
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
-        # output trong [-1, 1]
-        return torch.tanh(self.net(state))
+    def forward(self, x):
+        x = self.embedding(x)
+        x = self.block(x)
+        return x
 
 
 class Critic(nn.Module):
-    """
-    Q-network: (state, action) -> Q-value
-    """
-    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 256):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(state_dim + action_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1),
-        )
-        self.apply(fanin_init)
 
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        x = torch.cat([state, action], dim=-1)
-        return self.net(x)
-
-
-# ============================================================
-# Replay Buffer
-# ============================================================
-
-class ReplayBuffer:
-    def __init__(self, state_dim: int, action_dim: int, capacity: int = 1_000_00):
-        self.capacity = capacity
-        self.ptr = 0
-        self.size = 0
-
-        self.states = np.zeros((capacity, state_dim), dtype=np.float32)
-        self.actions = np.zeros((capacity, action_dim), dtype=np.float32)
-        self.rewards = np.zeros((capacity, 1), dtype=np.float32)
-        self.next_states = np.zeros((capacity, state_dim), dtype=np.float32)
-        self.dones = np.zeros((capacity, 1), dtype=np.float32)
-
-    def add(self, state, action, reward, next_state, done):
-        idx = self.ptr
-        self.states[idx] = state
-        self.actions[idx] = action
-        self.rewards[idx] = reward
-        self.next_states[idx] = next_state
-        self.dones[idx] = float(done)
-
-        self.ptr = (self.ptr + 1) % self.capacity
-        self.size = min(self.size + 1, self.capacity)
-
-    def sample(self, batch_size: int):
-        idxs = np.random.randint(0, self.size, size=batch_size)
-        return (
-            self.states[idxs],
-            self.actions[idxs],
-            self.rewards[idxs],
-            self.next_states[idxs],
-            self.dones[idxs],
-        )
-
-    def __len__(self):
-        return self.size
-
-
-# ============================================================
-# TD3 Agent
-# ============================================================
-
-@dataclass
-class TD3Config:
-    gamma: float = 0.99
-    tau: float = 0.005
-    policy_noise: float = 0.2       # noise cho target policy (smoothing)
-    noise_clip: float = 0.5
-    expl_noise: float = 0.1         # exploration noise khi tương tác env
-    policy_delay: int = 2
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-    batch_size: int = 256
-    buffer_capacity: int = 500_000
-    hidden_dim: int = 256
-
-
-class TD3Agent:
-    def __init__(self, state_dim: int, action_space, device: str = "cpu",
-                 config: TD3Config = TD3Config()):
-        self.device = torch.device(device)
-        self.cfg = config
+    def __init__(self, state_dim=12, action_dim=4):
+        """
+        :param state_dim: Dimension of input state (int)
+        :param action_dim: Dimension of input action (int)
+        :return:
+        """
+        super(Critic, self).__init__()
 
         self.state_dim = state_dim
-        self.action_dim = action_space.shape[0]
+        self.action_dim = action_dim
 
-        # Action range
-        self.action_low = torch.as_tensor(action_space.low, dtype=torch.float32, device=self.device)
-        self.action_high = torch.as_tensor(action_space.high, dtype=torch.float32, device=self.device)
-        self.action_scale = (self.action_high - self.action_low) / 2.0
-        self.action_bias = (self.action_high + self.action_low) / 2.0
+        self.state_encoder = MLPEncoder(self.state_dim, 96, 192)
 
-        # Networks
-        self.actor = Actor(state_dim, self.action_dim, self.cfg.hidden_dim).to(self.device)
-        self.actor_target = copy.deepcopy(self.actor).to(self.device)
+        self.fc2 = nn.Linear(96 + self.action_dim, 192)
+        nn.init.xavier_uniform_(self.fc2.weight, gain=nn.init.calculate_gain('tanh'))
+        
+        self.fc_out = nn.Linear(192, 1, bias=False)
+        nn.init.uniform_(self.fc_out.weight, -0.003,+0.003)
 
-        self.critic1 = Critic(state_dim, self.action_dim, self.cfg.hidden_dim).to(self.device)
-        self.critic2 = Critic(state_dim, self.action_dim, self.cfg.hidden_dim).to(self.device)
-        self.critic1_target = copy.deepcopy(self.critic1).to(self.device)
-        self.critic2_target = copy.deepcopy(self.critic2).to(self.device)
+        self.act = nn.Tanh()
 
-        # Optimizers
-        self.actor_opt = optim.Adam(self.actor.parameters(), lr=self.cfg.actor_lr)
-        self.critic1_opt = optim.Adam(self.critic1.parameters(), lr=self.cfg.critic_lr)
-        self.critic2_opt = optim.Adam(self.critic2.parameters(), lr=self.cfg.critic_lr)
-
-        # Replay buffer
-        self.replay = ReplayBuffer(state_dim, self.action_dim, capacity=self.cfg.buffer_capacity)
-
-        self.total_it = 0
-
-    # -----------------------------
-    # Utilities
-    # -----------------------------
-    def _to_tensor(self, x):
-        return torch.as_tensor(x, dtype=torch.float32, device=self.device)
-
-    def _scale_action(self, action_normalized: torch.Tensor) -> torch.Tensor:
-        # action_normalized trong [-1,1] -> scale về range env
-        return action_normalized * self.action_scale + self.action_bias
-
-    # -----------------------------
-    # Interaction
-    # -----------------------------
-    def select_action(self, state: np.ndarray, eval_mode: bool = False) -> np.ndarray:
+    def forward(self, state, action):
         """
-        state: np.array (state_dim,)
-        return: np.array (action_dim,) trong range env
+        returns Value function Q(s,a) obtained from critic network
+        :param state: Input state (Torch Variable : [n,state_dim] )
+        :param action: Input Action (Torch Variable : [n,action_dim] )
+        :return: Value function : Q(S,a) (Torch Variable : [n,1] )
         """
-        state_t = self._to_tensor(state).unsqueeze(0)  # (1, state_dim)
-        with torch.no_grad():
-            action_n = self.actor(state_t)  # [-1,1]
-            action = self._scale_action(action_n).cpu().numpy().flatten()
-
-        if not eval_mode:
-            noise = np.random.normal(0, self.cfg.expl_noise, size=self.action_dim)
-            action = action + noise
-        # clip theo env
-        action = np.clip(action, self.action_low.cpu().numpy(), self.action_high.cpu().numpy())
-        return action
-
-    def store_transition(self, state, action, reward, next_state, done):
-        self.replay.add(state, action, reward, next_state, done)
-
-    # -----------------------------
-    # Training step
-    # -----------------------------
-    def train_step(self):
-        if len(self.replay) < self.cfg.batch_size:
-            return
-
-        self.total_it += 1
-
-        states, actions, rewards, next_states, dones = self.replay.sample(self.cfg.batch_size)
-
-        states = self._to_tensor(states)
-        actions = self._to_tensor(actions)
-        rewards = self._to_tensor(rewards)
-        next_states = self._to_tensor(next_states)
-        dones = self._to_tensor(dones)
-
-        # ---------- Critic update ----------
-        with torch.no_grad():
-            # Target policy smoothing
-            next_action_n = self.actor_target(next_states)  # [-1,1]
-            next_action = self._scale_action(next_action_n)
-
-            noise = (torch.randn_like(next_action) * self.cfg.policy_noise).clamp(
-                -self.cfg.noise_clip, self.cfg.noise_clip
-            )
-            next_action = (next_action + noise).clamp(self.action_low, self.action_high)
-
-            # Clipped double Q
-            target_Q1 = self.critic1_target(next_states, next_action)
-            target_Q2 = self.critic2_target(next_states, next_action)
-            target_Q = torch.min(target_Q1, target_Q2)
-
-            target = rewards + (1.0 - dones) * self.cfg.gamma * target_Q
-
-        current_Q1 = self.critic1(states, actions)
-        current_Q2 = self.critic2(states, actions)
-
-        critic1_loss = nn.MSELoss()(current_Q1, target)
-        critic2_loss = nn.MSELoss()(current_Q2, target)
-
-        self.critic1_opt.zero_grad()
-        critic1_loss.backward()
-        self.critic1_opt.step()
-
-        self.critic2_opt.zero_grad()
-        critic2_loss.backward()
-        self.critic2_opt.step()
-
-        # ---------- Delayed actor & target update ----------
-        if self.total_it % self.cfg.policy_delay == 0:
-            # Actor loss: maximize Q1(s, π(s)) -> minimize -Q1
-            pi_n = self.actor(states)
-            pi = self._scale_action(pi_n)
-            actor_loss = -self.critic1(states, pi).mean()
-
-            self.actor_opt.zero_grad()
-            actor_loss.backward()
-            self.actor_opt.step()
-
-            # Soft update targets
-            self._soft_update(self.actor, self.actor_target)
-            self._soft_update(self.critic1, self.critic1_target)
-            self._soft_update(self.critic2, self.critic2_target)
-
-    def _soft_update(self, net: nn.Module, target_net: nn.Module):
-        for param, target_param in zip(net.parameters(), target_net.parameters()):
-            target_param.data.copy_(self.cfg.tau * param.data + (1 - self.cfg.tau) * target_param.data)
+        s = self.state_encoder(state)
+        x = torch.cat((s,action),dim=1)
+        x = self.act(self.fc2(x))
+        x = self.fc_out(x)*10
+        return x
 
 
-# ============================================================
-# Training loop example cho DRONE
-# ============================================================
-from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
-from gym_pybullet_drones.utils.enums import ObservationType, ActionType
-def make_env() -> gym.Env:
-    """
-    Chỗ này bạn sửa theo env của bạn.
-    Ví dụ với gym-pybullet-drones (single agent):
+class Actor(nn.Module):
 
-    from gym_pybullet_drones.envs.single_agent_rl import HoverAviary
-    from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
+    def __init__(self, state_dim=12, action_dim=4, stochastic=False):
+        """
+        :param state_dim: Dimension of input state (int)
+        :param action_dim: Dimension of output action (int)
+        :param action_lim: Used to limit action in [-action_lim,action_lim]
+        :return:
+        """
+        super(Actor, self).__init__()
 
-    env = HoverAviary(
-        drone_model=DroneModel.CF2X,
-        obs=ObservationType.KIN,
-        act=ActionType.RPM,
-        gui=False,
-        record=False
-    )
-    return env
-    """
-    # Demo: dùng một env continuous bất kỳ (thay bằng FlyThruGateAviary của bạn)
-    # Ví dụ: LunarLanderContinuous-v2
-    # env = gym.make("LunarLanderContinuous-v2")
-    # return env
-    DEFAULT_GUI = True
-    DEFAULT_RECORD_VIDEO = False
-    DEFAULT_OUTPUT_FOLDER = 'results'
-    DEFAULT_COLAB = False
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.stochastic = stochastic
 
-    DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb' , KIN - (1,12) , RGB - (3,64,64)
-    DEFAULT_ACT = ActionType('rpm') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
+        self.state_encoder = MLPEncoder(self.state_dim, 96, 192)
+
+        self.fc = nn.Linear(96, action_dim, bias=False)
+        nn.init.uniform_(self.fc.weight, -0.003, +0.003)
+        #nn.init.zeros_(self.fc.bias)
+
+        if self.stochastic:
+            self.log_std = nn.Linear(96, action_dim, bias=False)
+            nn.init.uniform_(self.log_std.weight, -0.003, +0.003)
+            #nn.init.zeros_(self.log_std.bias)  
+
+        self.tanh = nn.Tanh()
 
 
-    env = FlyThruGateAvitary(obs=DEFAULT_OBS, act=DEFAULT_ACT)
-    return env
-
-
-def train_td3_drone(
-    num_episodes: int = 500,
-    max_steps: int = 1000,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
-):
-    env = make_env()
-    state_dim = env.observation_space.shape[0]
-    action_space = env.action_space
-
-    agent = TD3Agent(state_dim, action_space, device=device)
-
-    for ep in range(num_episodes):
-        # Gym < 0.26: state = env.reset()
-        # Gymnasium / mới: state, info = env.reset()
-        out = env.reset()
-        if isinstance(out, tuple):
-            state, _ = out
-        else:
-            state = out
-
-        ep_reward = 0.0
-
-        for t in range(max_steps):
-            action = agent.select_action(state, eval_mode=False)
-            step_out = env.step(action)
-
-            # Hỗ trợ cả gym cũ (4 giá trị) lẫn mới (5 giá trị)
-            if len(step_out) == 4:
-                next_state, reward, done, info = step_out
-                truncated = False
+    def forward(self, state, explore=True):
+        """
+        returns either:
+        - deterministic policy function mu(s) as policy action.
+        - stochastic action sampled from tanh-gaussian policy, with its entropy value.
+        this function returns actions lying in (-1,1) 
+        :param state: Input state (Torch Variable : [n,state_dim] )
+        :return: Output action (Torch Variable: [n,action_dim] )
+        """
+        s = self.state_encoder(state)
+        if self.stochastic:
+            means = self.fc(s)
+            log_stds = self.log_std(s)
+            log_stds = torch.clamp(log_stds, min=-10.0, max=2.0)
+            stds = log_stds.exp()
+            dists = Normal(means, stds)
+            if explore:
+                x = dists.rsample()
             else:
-                next_state, reward, terminated, truncated, info = step_out
-                done = terminated or truncated
+                x = means            
+            actions = self.tanh(x)
+            log_probs = dists.log_prob(x) - torch.log(1-actions.pow(2) + 1e-6)
+            entropies = -log_probs.sum(dim=1, keepdim=True)
+            return actions, entropies
 
-            agent.store_transition(state, action, reward, next_state, done)
-            agent.train_step()
+        else:
+            actions = self.tanh(self.fc(s))
+            return actions
+        
+class TD3Agent:
+    def __init__(self, Actor, Critic, clip_low,
+                 clip_high, state_size=12, action_size=4, 
+                 update_freq=int(2),
+                 lr=4e-4, weight_decay=0, 
+                 gamma=0.98, tau=0.01, batch_size=64, 
+                 buffer_size=int(500000), device=None):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.update_freq = update_freq
+        
+        self.learn_call = int(0)
 
-            state = next_state
-            ep_reward += reward
+        self.gamma = gamma
+        self.tau = tau
+        self.batch_size = batch_size
+        
 
-            if done:
-                break
+        if device is None:
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
+        else:
+            self.device = torch.device(device)
 
-        print(f"Episode {ep+1}/{num_episodes} | Return: {ep_reward:.2f}")
+        self.clip_low = torch.tensor(clip_low).to(self.device)
+        self.clip_high = torch.tensor(clip_high).to(self.device)
 
-    env.close()
+        self.train_actor = Actor().to(self.device)
+        self.target_actor= Actor().to(self.device).eval()
+        self.hard_update(self.train_actor, self.target_actor) # hard update at the beginning
+        self.actor_optim = torch.optim.AdamW(self.train_actor.parameters(), lr=lr, weight_decay=weight_decay, amsgrad=True)
+        print(f'Number of paramters of Actor Net: {sum(p.numel() for p in self.train_actor.parameters())}')
+        
+        self.train_critic_1 = Critic().to(self.device)
+        self.target_critic_1 = Critic().to(self.device).eval()
+        self.hard_update(self.train_critic_1, self.target_critic_1) # hard update at the beginning
+        self.critic_1_optim = torch.optim.AdamW(self.train_critic_1.parameters(), lr=lr, weight_decay=weight_decay, amsgrad=True)
 
+        self.train_critic_2 = Critic().to(self.device)
+        self.target_critic_2 = Critic().to(self.device).eval()
+        self.hard_update(self.train_critic_2, self.target_critic_2) # hard update at the beginning
+        self.critic_2_optim = torch.optim.AdamW(self.train_critic_2.parameters(), lr=lr, weight_decay=weight_decay, amsgrad=True)
+        print(f'Number of paramters of Single Critic Net: {sum(p.numel() for p in self.train_critic_2.parameters())}')
 
-if __name__ == "__main__":
-    train_td3_drone()
+        self.noise_generator = DecayingOrnsteinUhlenbeckNoise(mu=np.zeros(action_size), theta=4.0, sigma=1.2, dt=0.04, sigma_decay=0.9995)
+        self.target_noise = GaussianNoise(mu=np.zeros(action_size), sigma=0.2, clip=0.4)
+        
+        self.memory= ReplayBuffer(action_size= action_size, buffer_size= buffer_size, \
+            batch_size= self.batch_size, device=self.device)
+        
+        self.mse_loss = torch.nn.MSELoss()
+
+    def learn_with_batches(self, state, action, reward, next_state, done):
+        self.memory.add(state, action, reward, next_state, done)
+        self.learn_one_step()
+
+    def learn_one_step(self):
+        if(len(self.memory)>self.batch_size):
+            exp=self.memory.sample()
+            self.learn(exp) 
+    def learn(self, exp):
+        self.learn_call+=1
+        states, actions, rewards, next_states, done = exp
+        #update critic
+        with torch.no_grad():
+            next_actions = self.target_actor(next_states)
+            noise = torch.from_numpy(self.target_noise()).float().to(self.device)
+            next_actions = next_actions + noise
+            next_actions = torch.clamp(next_actions, self.clip_low, self.clip_high)
+            
+            Q_targets_next_1 = self.target_critic_1(next_states, next_actions)
+            Q_targets_next_2 = self.target_critic_2(next_states, next_actions)
+            Q_targets_next = torch.min(Q_targets_next_1, Q_targets_next_2).detach()
+            Q_targets = rewards + (self.gamma * Q_targets_next * (1-done))
+            #Q_targets = rewards + (self.gamma * Q_targets_next) 
+
+        Q_expected_1 = self.train_critic_1(states, actions)
+        critic_1_loss = self.mse_loss(Q_expected_1, Q_targets)
+        #critic_1_loss = torch.nn.SmoothL1Loss()(Q_expected_1, Q_targets)
+
+        self.critic_1_optim.zero_grad(set_to_none=True)
+        critic_1_loss.backward()
+        #torch.nn.utils.clip_grad_norm_(self.train_critic_1.parameters(), 1)
+        self.critic_1_optim.step()
+
+        Q_expected_2 = self.train_critic_2(states, actions)   
+        critic_2_loss = self.mse_loss(Q_expected_2, Q_targets)
+        #critic_2_loss = torch.nn.SmoothL1Loss()(Q_expected_2, Q_targets)
+        
+        self.critic_2_optim.zero_grad(set_to_none=True)
+        critic_2_loss.backward()
+        #torch.nn.utils.clip_grad_norm_(self.train_critic_2.parameters(), 1)
+        self.critic_2_optim.step()
+
+        if self.learn_call % self.update_freq == 0: # update_freq = 2
+            self.learn_call = 0
+            #update actor
+            actions_pred = self.train_actor(states)
+            actor_loss = -self.train_critic_1(states, actions_pred).mean()
+            
+            self.actor_optim.zero_grad(set_to_none=True)
+            actor_loss.backward()
+            #torch.nn.utils.clip_grad_norm_(self.train_actor.parameters(), 1)
+            self.actor_optim.step()
+        
+            #using soft upates
+            self.soft_update(self.train_actor, self.target_actor)
+            self.soft_update(self.train_critic_1, self.target_critic_1)
+            self.soft_update(self.train_critic_2, self.target_critic_2)
+        
+    @torch.no_grad()        
+    def get_action(self, state, explore=False):
+        #self.train_actor.eval()
+        # print(f"State shape in get_action: {state.shape}")
+        state = torch.from_numpy(state).unsqueeze(0).float().to(self.device)
+        #with torch.no_grad():
+        action = self.train_actor(state).cpu().data.numpy()[0]
+        #self.train_actor.train()
+
+        if explore:
+            noise = self.noise_generator()
+            #print(noise)
+            action += noise
+        return action
+    
+    def soft_update(self, local_model, target_model):
+        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+            target_param.data.copy_(self.tau*local_param.data + (1.0-self.tau)*target_param.data)
+    
+    def hard_update(self, local_model, target_model):
+        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+            target_param.data.copy_(local_param.data)
+    
+    def save_ckpt(self, episode, prefix='last'):
+        # Create folder 
+        td3_dir = os.path.join("log_dir", "td3_thrugate")
+        # Create log directory if it doesn't exist
+        if not os.path.exists(td3_dir):
+            os.makedirs(td3_dir)
+        actor_dir = os.path.join(td3_dir, "actor")
+        critics_dir = os.path.join(td3_dir, "critics")
+        if not os.path.exists(actor_dir):
+            os.makedirs(actor_dir)
+        if not os.path.exists(critics_dir):
+            os.makedirs(critics_dir)
+        
+        actor_file = os.path.join(actor_dir, "_".join([prefix, episode, "actor.pth"]))
+        critic_1_file = os.path.join(critics_dir, "_".join([prefix, episode, "critic_1.pth"]))
+        critic_2_file = os.path.join(critics_dir, "_".join([prefix, episode, "critic_2.pth"]))
+        
+        # Lưu checkpoints
+        torch.save(self.train_actor.state_dict(), actor_file)
+        torch.save(self.train_critic_1.state_dict(), critic_1_file)
+        torch.save(self.train_critic_2.state_dict(), critic_2_file)
+        print(f"Saved checkpoints at epoch {episode}")
+    
+    def load_ckpt(self, actor_path, critic_path1, critic_path2):
+        # Load checkpoints
+        try:
+            self.train_actor.load_state_dict(torch.load(actor_path, map_location=self.device))
+            print(f"Loaded actor from {actor_path}")
+        except:
+            print("Actor checkpoint cannot be loaded.")
+        
+        try:
+            self.train_critic_1.load_state_dict(torch.load(critic_path1, map_location=self.device))
+            self.train_critic_2.load_state_dict(torch.load(critic_path2, map_location=self.device))
+            print(f"Loaded critics from {critic_path1} and {critic_path2}")
+        except:
+            print("Critic checkpoints cannot be loaded.")
+
+    def train_mode(self):
+        self.train_actor.train()
+        self.train_critic_1.train()
+        self.train_critic_2.train()
+
+    def eval_mode(self):
+        self.train_actor.eval()
+        self.train_critic_1.eval()
+        self.train_critic_2.eval()
+
+    def freeze_networks(self):
+        for p in chain(self.train_actor.parameters(), self.train_critic_1.parameters(), self.train_critic_2.parameters()):
+            p.requires_grad = False
+
+    def step_end(self):
+        self.noise_generator.step_end()
+
+    def episode_end(self):
+        self.noise_generator.episode_end()  

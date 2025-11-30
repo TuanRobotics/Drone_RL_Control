@@ -69,7 +69,7 @@ def test():
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     run_num_pretrained = 0      #### set this to load a particular checkpoint num
 
-    checkpoint_path = "log_dir/thrugate/2015_ppo_drone.pth"
+    checkpoint_path = "log_dir/thrugate_ppo/23210_ppo_drone.pth"
     print("loading network from : " + checkpoint_path)
 
     ppo_agent.load(checkpoint_path)

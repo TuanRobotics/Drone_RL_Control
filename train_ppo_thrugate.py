@@ -49,7 +49,7 @@ def train():
 
     random_seed = 0         # set random seed if required (0 = no random seed)
     log_dir = "log_dir/"
-    
+
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -157,11 +157,8 @@ def train():
 
         i_episode += 1
 
-
     log_f.close()
     env.close()
-
-
 
     # print total training time
     print("============================================================================================")
