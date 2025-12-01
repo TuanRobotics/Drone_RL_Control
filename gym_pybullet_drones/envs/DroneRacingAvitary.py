@@ -8,7 +8,7 @@ import pkg_resources
 from gym_pybullet_drones.envs.BaseRLAviary import BaseRLAviary
 from gym_pybullet_drones.utils.enums import DroneModel, ObservationType, ActionType, Physics
 
-class DronceRacingAvitary(BaseRLAviary):
+class DroneRacingAvitary(BaseRLAviary):
     """Drone Racing environment class for multiple drones racing through gates in a PyBullet simulation.
 
     The environment is initialized with a specified number of drones, observation type, action type, and physics engine.
@@ -82,6 +82,7 @@ class DronceRacingAvitary(BaseRLAviary):
         self.GATE_IDs = np.array([g1, g2, g3, g4, g5])
 
     def _computeReward(self):
+
         state = self._getDroneStateVector(0)
         pos = state[0:3]
         rpy = state[7:10]

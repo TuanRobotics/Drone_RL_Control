@@ -30,7 +30,7 @@ def test(env, agent, render=True, max_t_step=1000, explore=False, n_times=1):
             t += int(1)
             action = agent.get_action(state, explore=explore)
             action = action.clip(min=env.action_space.low, max=env.action_space.high)
-            print(action) # Debug: print action
+            # print(action) # Debug: print action
 
             next_state, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
@@ -45,7 +45,7 @@ def test(env, agent, render=True, max_t_step=1000, explore=False, n_times=1):
 
 
 def train(env, agent, n_episodes=5000, score_limit=300.0, explore_episode=50, 
-          test_f=200, max_t_step=500, csv_filename="training_td3_data.csv", 
+          test_f=200, max_t_step=1000, csv_filename="training_td3_data.csv", 
           learn_every=1, warmup_steps=50):
     """
     Improved training function with CSV logging
@@ -61,7 +61,7 @@ def train(env, agent, n_episodes=5000, score_limit=300.0, explore_episode=50,
     max_score = -np.inf
     total_steps = 0
     
-    # Tạo thư mục results nếu chưa có
+    # Create output folder if it doesn't exist
     os.makedirs(DEFAULT_OUTPUT_FOLDER, exist_ok=True)
     csv_path = os.path.join(DEFAULT_OUTPUT_FOLDER, csv_filename)
     
@@ -112,12 +112,12 @@ def train(env, agent, n_episodes=5000, score_limit=300.0, explore_episode=50,
             
             agent.step_end()
 
-        # Ghi data của episode vào CSV
+        # Save data to CSV after episode ends (to reduce I/O operations)
         with open(csv_path, 'a', newline='') as csvfile:
             csv_writer = csv.writer(csvfile)
             csv_writer.writerows(episode_data)
         
-        # Episode kết thúc
+        # Episode ended
         if i_episode > explore_episode:
             agent.episode_end()
 
@@ -125,8 +125,9 @@ def train(env, agent, n_episodes=5000, score_limit=300.0, explore_episode=50,
         avg_score_100 = np.mean(scores_deque)
         scores.append((i_episode, score, avg_score_100))
         
-        print('\rEpisode {}\tAverage Score: {:.2f}\tScore: {:.2f}\tSteps: {}'.format(
-            i_episode, avg_score_100, score, total_steps), end="")
+        if i_episode % 5 == 0 or i_episode == 1:
+            print('\rEpisode {}\tAverage Score: {:.2f}\tScore: {:.2f}\tSteps: {}'.format(
+                i_episode, avg_score_100, score, total_steps), end="")
 
         # Testing and saving
         if i_episode % test_f == 0 or avg_score_100 > score_limit:

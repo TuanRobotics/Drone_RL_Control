@@ -65,12 +65,12 @@ class Critic(nn.Module):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
-        self.state_encoder = MLPEncoder(self.state_dim, 96, 192)
+        self.state_encoder = MLPEncoder(self.state_dim, 128, 128)
 
-        self.fc2 = nn.Linear(96 + self.action_dim, 192)
+        self.fc2 = nn.Linear(128 + self.action_dim, 128)
         nn.init.xavier_uniform_(self.fc2.weight, gain=nn.init.calculate_gain('tanh'))
         
-        self.fc_out = nn.Linear(192, 1, bias=False)
+        self.fc_out = nn.Linear(128, 1, bias=False)
         nn.init.uniform_(self.fc_out.weight, -0.003,+0.003)
 
         self.act = nn.Tanh()
@@ -82,8 +82,10 @@ class Critic(nn.Module):
         :param action: Input Action (Torch Variable : [n,action_dim] )
         :return: Value function : Q(S,a) (Torch Variable : [n,1] )
         """
+        # Debug states shape
+        # print(f"State shape in Critic forward: {state.shape}")
         s = self.state_encoder(state)
-        x = torch.cat((s,action),dim=1)
+        x = torch.cat((s,action),dim=1) # concatenate along the second dimension
         x = self.act(self.fc2(x))
         x = self.fc_out(x)*10
         return x
@@ -104,19 +106,18 @@ class Actor(nn.Module):
         self.action_dim = action_dim
         self.stochastic = stochastic
 
-        self.state_encoder = MLPEncoder(self.state_dim, 96, 192)
+        self.state_encoder = MLPEncoder(self.state_dim, 128, 128)
 
-        self.fc = nn.Linear(96, action_dim, bias=False)
+        self.fc = nn.Linear(128, action_dim, bias=False)
         nn.init.uniform_(self.fc.weight, -0.003, +0.003)
         #nn.init.zeros_(self.fc.bias)
 
         if self.stochastic:
-            self.log_std = nn.Linear(96, action_dim, bias=False)
+            self.log_std = nn.Linear(128, action_dim, bias=False)
             nn.init.uniform_(self.log_std.weight, -0.003, +0.003)
             #nn.init.zeros_(self.log_std.bias)  
 
         self.tanh = nn.Tanh()
-
 
     def forward(self, state, explore=True):
         """
@@ -209,13 +210,26 @@ class TD3Agent:
     def learn(self, exp):
         self.learn_call+=1
         states, actions, rewards, next_states, done = exp
+        # Debug shapes
+        # print(f"States shape: {states.shape}, Actions shape: {actions.shape}")
+        # torch.Size([64, 1, 12]), Actions shape: torch.Size([64, 1, 4])
+        # convert to 2D tensors if necessary
+        if len(states.shape) > 2:
+            states = states.view(states.size(0), -1)
+        if len(actions.shape) > 2:
+            actions = actions.view(actions.size(0), -1)
+        if len(next_states.shape) > 2:
+            next_states = next_states.view(next_states.size(0), -1)
+        # Debug again
+        # print(f"After reshape - States shape: {states.shape}, Actions shape: {actions.shape}, Next states shape: {next_states.shape}")
+
         #update critic
         with torch.no_grad():
             next_actions = self.target_actor(next_states)
             noise = torch.from_numpy(self.target_noise()).float().to(self.device)
             next_actions = next_actions + noise
             next_actions = torch.clamp(next_actions, self.clip_low, self.clip_high)
-            
+            # Error here
             Q_targets_next_1 = self.target_critic_1(next_states, next_actions)
             Q_targets_next_2 = self.target_critic_2(next_states, next_actions)
             Q_targets_next = torch.min(Q_targets_next_1, Q_targets_next_2).detach()

@@ -110,7 +110,7 @@ class FlyThruGateAvitary(BaseRLAviary):
         # 5. Penalty for collision or going out of bounds
         out_of_bounds = abs(pos[0]) > 2.0 or abs(pos[1]) > 1.5 or pos[2] < 0.1 or pos[2] > 2.0
         if out_of_bounds:
-            reward = -10.0 
+            reward = -10.0
             return reward
         
         # Total reward (can tune coefficients)

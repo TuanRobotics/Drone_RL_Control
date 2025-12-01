@@ -10,3 +10,9 @@ In this project, our idea is to use Reinforcement Learning algorithms to train a
 
 ## SAC
 [SAC](https://janak-lal.com.np/solving-bipedal-walker-hardcore-challenge-with-soft-actor-critic-algorithm/)
+
+
+## Achitectures: 
+    - Lstm 
+    - Transformer
+    - mlp model 
