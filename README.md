@@ -13,6 +13,10 @@ In this project, our idea is to use Reinforcement Learning algorithms to train a
 
 
 ## Achitectures: 
-    - Lstm 
+    - Lstm: [Paper](#https://www.researchgate.net/publication/320296763_Recurrent_Network-based_Deterministic_Policy_Gradient_for_Solving_Bipedal_Walking_Challenge_on_Rugged_Terrains)
     - Transformer
-    - mlp model 
+    - mlp model
+
+## TODO List:
+ - 2/12 - 3/12: Training Drone thrugate using lstm and mlpEncoder for SAC and TD3
+ - 4/12 - 6/12: Training Drone racing using lstm and mlpEncoder for SAC and TD3

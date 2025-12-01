@@ -112,3 +112,4 @@ class Actor(nn.Module):
         else:
             actions = self.tanh(self.fc(s)) # [batch_size, action_dim]
             return actions
+        
