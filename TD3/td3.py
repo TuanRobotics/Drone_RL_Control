@@ -49,7 +49,7 @@ class MLPEncoder(nn.Module):
     def forward(self, x):
         x = self.embedding(x)
         x = self.block(x)
-        return x
+        return x # [batch_size, hidden_size]
 
 
 class Critic(nn.Module):
@@ -65,12 +65,12 @@ class Critic(nn.Module):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
-        self.state_encoder = MLPEncoder(self.state_dim, 128, 128)
+        self.state_encoder = MLPEncoder(self.state_dim, 128, 192)
 
-        self.fc2 = nn.Linear(128 + self.action_dim, 128)
+        self.fc2 = nn.Linear(128 + self.action_dim, 192)
         nn.init.xavier_uniform_(self.fc2.weight, gain=nn.init.calculate_gain('tanh'))
         
-        self.fc_out = nn.Linear(128, 1, bias=False)
+        self.fc_out = nn.Linear(192, 1, bias=False)
         nn.init.uniform_(self.fc_out.weight, -0.003,+0.003)
 
         self.act = nn.Tanh()
@@ -84,10 +84,10 @@ class Critic(nn.Module):
         """
         # Debug states shape
         # print(f"State shape in Critic forward: {state.shape}")
-        s = self.state_encoder(state)
+        s = self.state_encoder(state) # [n,128]
         x = torch.cat((s,action),dim=1) # concatenate along the second dimension
-        x = self.act(self.fc2(x))
-        x = self.fc_out(x)*10
+        x = self.act(self.fc2(x)) # [n,192]
+        x = self.fc_out(x)*10 # [n,1]
         return x
 
 
@@ -106,9 +106,9 @@ class Actor(nn.Module):
         self.action_dim = action_dim
         self.stochastic = stochastic
 
-        self.state_encoder = MLPEncoder(self.state_dim, 128, 128)
+        self.state_encoder = MLPEncoder(self.state_dim, 128, 192)
 
-        self.fc = nn.Linear(128, action_dim, bias=False)
+        self.fc = nn.Linear(128, action_dim, bias=False) # For mean of action
         nn.init.uniform_(self.fc.weight, -0.003, +0.003)
         #nn.init.zeros_(self.fc.bias)
 
@@ -150,9 +150,9 @@ class Actor(nn.Module):
         
 class TD3Agent:
     def __init__(self, Actor, Critic, clip_low,
-                 clip_high, state_size=12, action_size=4, 
+                 clip_high, state_size=12, action_size=4, # For racing env: state_size=36, action_size=4
                  update_freq=int(2),
-                 lr=4e-4, weight_decay=0, 
+                 lr=5e-4, weight_decay=0, 
                  gamma=0.98, tau=0.01, batch_size=64, 
                  buffer_size=int(500000), device=None):
         self.state_size = state_size
