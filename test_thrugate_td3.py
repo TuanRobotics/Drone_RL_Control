@@ -5,9 +5,11 @@ from TD3.td3 import TD3Agent, Actor, Critic
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 import os
 from datetime import datetime
+import time
+from gym_pybullet_drones.utils.utils import sync
 
 
-def test_agent(env, agent, episodes=5, max_steps=200, render=False):
+def test_agent():
     """
     Test TD3 agent trong môi trường FlyThruGateAvitary.
     
@@ -18,45 +20,6 @@ def test_agent(env, agent, episodes=5, max_steps=200, render=False):
         max_steps: max step per episode
         render: whether to render GUI (pybullet GUI/on-screen info)
     """
-
-    agent.eval_mode()       
-    print("========== START TESTING ==========")
-
-    all_rewards = []
-
-    for ep in range(episodes):
-        obs, _ = env.reset()
-        ep_reward = 0
-
-        for step in range(max_steps):
-
-            # Lấy action từ agent
-            action = agent.get_action(obs, explore=False)   # explore=False khi test
-            
-            # Env step
-            next_obs, reward, terminated, truncated, info = env.step(action)
-
-            ep_reward += reward
-            obs = next_obs
-
-            if render:
-                pos = info["position"]
-                print(f"[EP {ep+1} | Step {step}] Pos: {pos}, Reward: {reward:.3f}")
-
-            # Nếu kết thúc episode
-            if terminated or truncated:
-                break
-
-        print(f"[Episode {ep+1}] Total Reward = {ep_reward:.2f}")
-        all_rewards.append(ep_reward)
-
-    print("=========== TEST FINISHED ===========")
-    print(f"Average Reward over {episodes} episodes: {np.mean(all_rewards):.2f}")
-
-    return all_rewards
-
-
-if __name__ == "__main__":
 
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = False
@@ -72,7 +35,6 @@ if __name__ == "__main__":
                            obs=DEFAULT_OBS,
                            act=DEFAULT_ACT,
                            record=DEFAULT_RECORD_VIDEO)
-
     agent = TD3Agent(
         Actor, Critic,
         clip_low=-1.0, clip_high=1.0,
@@ -86,11 +48,37 @@ if __name__ == "__main__":
 
     # Load checkpoint nếu có
     agent.load_ckpt(
-        actor_path="/home/tuan/Desktop/drone_rl_control/log_dir/td3_thrugate/actor/mlp_model_ep5000_actor.pth",
-        critic_path1="/home/tuan/Desktop/drone_rl_control/log_dir/td3_thrugate/critics/mlp_model_ep5000_critic_1.pth",
-        critic_path2="/home/tuan/Desktop/drone_rl_control/log_dir/td3_thrugate/critics/mlp_model_ep5000_critic_2.pth",
+        actor_path="log_dir/td3_thrugate/actor/mlp_model_ep10000_actor.pth",
+        critic_path1="log_dir/td3_thrugate/critics/mlp_model_ep10000_critic_1.pth",
+        critic_path2="log_dir/td3_thrugate/critics/mlp_model_ep10000_critic_2.pth",
     )
 
-    # Test
-    test_agent(env, agent, episodes=10, render=True)
+    agent.eval_mode()       
+    print("========== START TESTING ==========")
+
+    obs, info = env.reset(seed=42, options={})
+    ep_reward = 0
+    start_time = datetime.now().replace(microsecond=0)
+    start = time.time()
+
+    for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
+        action = agent.get_action(obs, explore=False)
+        action = np.expand_dims(action, axis=0)
+        obs, reward, terminated, truncated, info = env.step(action)
+        ep_reward += reward
+        env.render()
+        sync(i, start, env.CTRL_TIMESTEP)
+        if terminated:
+            break
+    print(f"Test Episode Reward: {ep_reward}")
+
+    test_running_reward +=  ep_reward
+    print('Episode: {} \t\t Reward: {}'.format(0, round(ep_reward, 2)))
+    ep_reward = 0
+
+    print("========== TESTING COMPLETED ==========")
     env.close()
+
+if __name__ == "__main__":
+    # Test
+    test_agent()
