@@ -34,7 +34,6 @@ def train():
     #####################################################
 
     ################ PPO hyperparameters ################
-    #update_timestep = max_ep_len * 4      # update policy every n timesteps
     max_training_timesteps = int(5e6)   # break training loop if timeteps > max_training_timesteps
     K_epochs = 80               # update policy for K epochs in one PPO update
 

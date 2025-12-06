@@ -76,6 +76,26 @@ class BaseRacingRLAviary(BaseAviary):
                 self.ctrl = [DSLPIDControl(drone_model=DroneModel.CF2X) for i in range(num_drones)]
             else:
                 print("[ERROR] in BaseRLAviary.__init()__, no controller is available for the specified drone_model")
+        
+         # Racing gates setup
+        self.w = 2.0
+        self.h = 1.0
+        self.offset = 0.1
+        # setup for racing: []
+        self.racing_setup = { 0: [[0, 1, self.h/2+self.offset], [-self.w/2, 1, self.h+self.offset], [self.w/2, 1, self.h+self.offset], [-self.w/2, 1, self.offset], [self.w/2, 1, self.offset]],
+                            1: [[0.5, 3, self.h/2+self.offset], [-self.w/2+0.5, 3, self.h+self.offset], [self.w/2+0.5, 3, self.h+self.offset], [-self.w/2+0.5, 3, self.offset], [self.w/2+0.5, 3, self.offset]],
+                            2: [[-0.5, 5, self.h/2+self.offset], [-self.w/2-0.5, 5, self.h+self.offset], [self.w/2-0.5, 5, self.h+self.offset], [-self.w/2-0.5, 5, self.offset], [self.w/2-0.5, 5, self.offset]],
+                            3: [[0.5, 7, self.h/2+self.offset], [-self.w/2+0.5, 7, self.h+self.offset], [self.w/2+0.5, 7, self.h+self.offset], [-self.w/2+0.5, 7, self.offset], [self.w/2+0.5, 7, self.offset]],
+                            4: [[1.0, 9, self.h/2+self.offset], [-self.w/2+1.0, 9, self.h+self.offset], [self.w/2+1.0, 9, self.h+self.offset], [-self.w/2+1.0, 9, self.offset], [self.w/2+1.0, 9, self.offset]]
+                            }
+        
+        #### Set a limit on the maximum target speed ###############
+        if act == ActionType.VEL:
+            self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000/3600)
+        # Placeholder; will be set after BaseAviary initializes state arrays
+        self.prev_pos = None
+        self.passing_flag = [False for _ in range(len(self.racing_setup.keys()))]
+
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
                          neighbourhood_radius=neighbourhood_radius,
@@ -90,22 +110,10 @@ class BaseRacingRLAviary(BaseAviary):
                          user_debug_gui=False, # Remove of RPM sliders from all single agent learning aviaries
                          vision_attributes=vision_attributes,
                          )
-        #### Set a limit on the maximum target speed ###############
-        if act == ActionType.VEL:
-            self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000/3600)
-        #### Racing setup ##########################################
-        self.w = 2.0 # 
-        self.h = 1.0 
-        self.offset = 0.1
-        self.racing_setup = { 0: [[0, 1, self.h/2+self.offset], [-self.w/2, 1, self.h+self.offset], [self.w/2, 1, self.h+self.offset], [-self.w/2, 1, self.offset], [self.w/2, 1, self.offset]],
-                            1: [[0.5, 3, self.h/2+self.offset], [-self.w/2+0.5, 3, self.h+self.offset], [self.w/2+0.5, 3, self.h+self.offset], [-self.w/2+0.5, 3, self.offset], [self.w/2+0.5, 3, self.offset]],
-                            2: [[-0.5, 5, self.h/2+self.offset], [-self.w/2-0.5, 5, self.h+self.offset], [self.w/2-0.5, 5, self.h+self.offset], [-self.w/2-0.5, 5, self.offset], [self.w/2-0.5, 5, self.offset]],
-                            3: [[0.5, 7, self.h/2+self.offset], [-self.w/2+0.5, 7, self.h+self.offset], [self.w/2+0.5, 7, self.h+self.offset], [-self.w/2+0.5, 7, self.offset], [self.w/2+0.5, 7, self.offset]],
-                            4: [[1.0, 9, self.h/2+self.offset], [-self.w/2+1.0, 9, self.h+self.offset], [self.w/2+1.0, 9, self.h+self.offset], [-self.w/2+1.0, 9, self.offset], [self.w/2+1.0, 9, self.offset]]
-                            }
-        self.prev_pos = self._getDroneStateVector(0)[:3]
-        self.passing_flag = [False for _ in range(len(self.racing_setup.keys()))]
-
+        # Set the initial previous position now that state buffers exist
+        if self.prev_pos is None:
+            self.prev_pos = self._getDroneStateVector(0)[:3]
+        
     def _addObstacles(self):
         """Add obstacles to the environment.
 
@@ -136,7 +144,6 @@ class BaseRacingRLAviary(BaseAviary):
                        )
         else:
             pass
-
     ################################################################################
 
     def _actionSpace(self):
@@ -313,25 +320,6 @@ class BaseRacingRLAviary(BaseAviary):
                                           frame_num=int(self.step_counter/self.IMG_CAPTURE_FREQ)
                                           )
             return np.array([self.rgb[i] for i in range(self.NUM_DRONES)]).astype('float32')
-        
-        # elif self.OBS_TYPE == ObservationType.KIN:
-        #     ############################################################
-        #     #### OBS SPACE OF SIZE 12
-        #     obs_12 = np.zeros((self.NUM_DRONES,12))
-        #     obs_18 = np.zeros((self.NUM_DRONES,18))
-        #     for i in range(self.NUM_DRONES):
-        #         #obs = self._clipAndNormalizeState(self._getDroneStateVector(i))
-        #         obs = self._getDroneStateVector(i)
-        #         rot_matrix = np.array(p.getMatrixFromQuaternion(obs[3:7]))
-        #         #print(rot_matrix)
-        #         obs_12[i, :] = np.hstack([obs[0:3], obs[7:10], obs[10:13], obs[13:16]]).reshape(12,)
-        #         #obs_18[i, :] = np.hstack([obs[0:3], obs[10:13], obs[13:16], rot_matrix]).reshape(18,)
-        #     ret = np.array([obs_12[i, :] for i in range(self.NUM_DRONES)]).astype('float32')
-        #     return ret
-        #     ############################################################
-        # else:
-        #     print("[ERROR] in BaseRLAviary._computeObs()")
-        # Make obs for drone racing 
         elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
             #### OBS SPACE OF SIZE 12

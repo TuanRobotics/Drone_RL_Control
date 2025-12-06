@@ -26,7 +26,7 @@ def train_sac(num_episodes=5000,
               start_steps=10000,
               update_after=1000,
               update_every=50,
-              save_every=100,
+              save_every=500,
               eval_every=50,
               num_eval_episodes=5,
               gui=False):
@@ -59,8 +59,10 @@ def train_sac(num_episodes=5000,
 
     # Create save directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    save_dir = f"sac_training\\sac_drone_{timestamp}"
-    os.makedirs(save_dir, exist_ok=True)
+    save_dir = f"log_dir/sac_thrugate_{timestamp}/"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    
 
     total_steps = 0
 
@@ -135,18 +137,18 @@ def train_sac(num_episodes=5000,
                 print(f"{'='*60}\n")
                 break
 
-        # Save model
+        # Save model and plots
         if (episode + 1) % save_every == 0:
-            # agent.save(os.path.join(save_dir, f"sac_model_ep{episode+1}.pt"))
+            agent.save(os.path.join(save_dir, f"sac_model_ep{episode+1}.pt"))
             plot_training_curves(episode_rewards, eval_rewards, q1_losses,
-                                 policy_losses, save_dir, episode + 1)
+                                 q2_losses, policy_losses, save_dir, episode + 1)
 
     env.close()
 
     # Final save
     agent.save(os.path.join(save_dir, "sac_model_final.pt"))
     plot_training_curves(episode_rewards, eval_rewards, q1_losses,
-                         policy_losses, save_dir, "final")
+                         q2_losses, policy_losses, save_dir, "final")
 
     print(f"\nTraining completed! Models saved in {save_dir}")
 
@@ -177,7 +179,7 @@ def evaluate_policy(env, agent, num_episodes=5):
 
 
 def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
-                         policy_losses, save_dir, episode):
+                         q2_losses, policy_losses, save_dir, episode):
     """Plot and save training curves"""
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
 
@@ -202,22 +204,29 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
         axes[0, 1].grid(True)
 
     # Q losses
-    if q1_losses:
-        axes[1, 0].plot(q1_losses, alpha=0.3)
-        if len(q1_losses) >= 100:
-            smoothed = np.convolve(q1_losses, np.ones(100)/100, mode='valid')
-            axes[1, 0].plot(range(99, len(q1_losses)), smoothed, linewidth=2)
+    if q1_losses or q2_losses:
+        if q1_losses:
+            axes[1, 0].plot(q1_losses, alpha=0.25, label='Q1 Loss')
+            if len(q1_losses) >= 50:
+                smoothed = np.convolve(q1_losses, np.ones(50)/50, mode='valid')
+                axes[1, 0].plot(range(len(q1_losses) - len(smoothed), len(q1_losses)), smoothed, linewidth=2, label='Q1 Smoothed')
+        if q2_losses:
+            axes[1, 0].plot(q2_losses, alpha=0.25, label='Q2 Loss')
+            if len(q2_losses) >= 50:
+                smoothed = np.convolve(q2_losses, np.ones(50)/50, mode='valid')
+                axes[1, 0].plot(range(len(q2_losses) - len(smoothed), len(q2_losses)), smoothed, linewidth=2, label='Q2 Smoothed')
         axes[1, 0].set_xlabel('Update Step')
-        axes[1, 0].set_ylabel('Q1 Loss')
-        axes[1, 0].set_title('Critic Loss')
+        axes[1, 0].set_ylabel('Critic Loss')
+        axes[1, 0].set_title('Critic Losses')
+        axes[1, 0].legend()
         axes[1, 0].grid(True)
 
     # Policy losses
     if policy_losses:
         axes[1, 1].plot(policy_losses, alpha=0.3)
-        if len(policy_losses) >= 100:
-            smoothed = np.convolve(policy_losses, np.ones(100)/100, mode='valid')
-            axes[1, 1].plot(range(99, len(policy_losses)), smoothed, linewidth=2)
+        if len(policy_losses) >= 50:
+            smoothed = np.convolve(policy_losses, np.ones(50)/50, mode='valid')
+            axes[1, 1].plot(range(len(policy_losses) - len(smoothed), len(policy_losses)), smoothed, linewidth=2)
         axes[1, 1].set_xlabel('Update Step')
         axes[1, 1].set_ylabel('Policy Loss')
         axes[1, 1].set_title('Actor Loss')

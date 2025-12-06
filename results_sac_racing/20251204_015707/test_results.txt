@@ -1,0 +1,23 @@
+SAC Drone Racing - Test Results
+========================================================================================
+
+Model: log_dir/sac_racing_parallel_20251204_013900/sac_model.pt
+Date: 2025-12-04 01:57:18
+
+Episodes: 10
+Average Reward: -0.05 ± 0.01
+Average Length: 10.00
+Successes: 0/10
+
+Episode Details:
+----------------------------------------------------------------------------------------
+Episode 1: Reward=-0.08, Length=10
+Episode 2: Reward=-0.05, Length=10
+Episode 3: Reward=-0.05, Length=10
+Episode 4: Reward=-0.05, Length=10
+Episode 5: Reward=-0.05, Length=10
+Episode 6: Reward=-0.05, Length=10
+Episode 7: Reward=-0.05, Length=10
+Episode 8: Reward=-0.05, Length=10
+Episode 9: Reward=-0.05, Length=10
+Episode 10: Reward=-0.05, Length=10

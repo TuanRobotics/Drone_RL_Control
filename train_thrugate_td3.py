@@ -173,7 +173,7 @@ if __name__ == '__main__':
     print("Starting TD3 Drone Training...")
     scores, test_scores = train(
         env, agent, 
-        n_episodes=10000,
+        n_episodes=100000,
         csv_filename=csv_filename,
         learn_every=1,  # Learn after every step
         warmup_steps=50  # 50 steps random to fill replay buffer

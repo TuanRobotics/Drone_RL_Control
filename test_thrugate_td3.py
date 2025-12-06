@@ -48,9 +48,9 @@ def test_agent():
 
     # Load checkpoint nếu có
     agent.load_ckpt(
-        actor_path="log_dir/td3_thrugate/actor/mlp_model_ep10000_actor.pth",
-        critic_path1="log_dir/td3_thrugate/critics/mlp_model_ep10000_critic_1.pth",
-        critic_path2="log_dir/td3_thrugate/critics/mlp_model_ep10000_critic_2.pth",
+        actor_path="log_dir/td3_thrugate/actor/mlp_model_ep100000_actor.pth",
+        critic_path1="log_dir/td3_thrugate/critics/mlp_model_ep100000_critic_1.pth",
+        critic_path2="log_dir/td3_thrugate/critics/mlp_model_ep100000_critic_2.pth",
     )
 
     agent.eval_mode()       
