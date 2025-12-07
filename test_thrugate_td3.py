@@ -23,7 +23,7 @@ def test_agent():
 
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = False
-    DEFAULT_OUTPUT_FOLDER = 'results_td3_thrugate'
+    DEFAULT_OUTPUT_FOLDER = 'log_dir/video_thrugate_td3'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
@@ -56,25 +56,39 @@ def test_agent():
     agent.eval_mode()       
     print("========== START TESTING ==========")
 
-    obs, info = env.reset(seed=42, options={})
-    ep_reward = 0
-    start_time = datetime.now().replace(microsecond=0)
-    start = time.time()
+    rewards = []
+    lengths = []
+    successes = 0
+    success_times = []
 
-    for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
-        action = agent.get_action(obs, explore=False)
-        action = np.expand_dims(action, axis=0)
-        obs, reward, terminated, truncated, info = env.step(action)
-        ep_reward += reward
-        env.render()
-        sync(i, start, env.CTRL_TIMESTEP)
-        if terminated:
-            break
-    print(f"Test Episode Reward: {ep_reward}")
+    for ep in range(10):
+        obs, info = env.reset(seed=42 + ep, options={})
+        ep_reward = 0
+        ep_len = 0
+        start = time.time()
 
-    test_running_reward +=  ep_reward
-    print('Episode: {} \t\t Reward: {}'.format(0, round(ep_reward, 2)))
-    ep_reward = 0
+        for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
+            action = agent.get_action(obs, explore=False)
+            action = np.expand_dims(action, axis=0)
+            obs, reward, terminated, truncated, info = env.step(action)
+            ep_reward += reward
+            ep_len += 1
+            env.render()
+            sync(i, start, env.CTRL_TIMESTEP)
+            if terminated or truncated:
+                if ep_reward > 5:
+                    successes += 1
+                    success_times.append(ep_len / env.CTRL_FREQ)
+                break
+        rewards.append(ep_reward)
+        lengths.append(ep_len)
+        print(f"Episode {ep+1}/10 | Reward {ep_reward:.2f} | Len {ep_len} | Success {'✓' if ep_reward>5 else '✗'}")
+
+    print(f"Avg reward: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}")
+    print(f"Success rate: {successes}/10 ({100*successes/10:.1f}%)")
+    if success_times:
+        print(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
+        print(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s")
 
     print("========== TESTING COMPLETED ==========")
     env.close()

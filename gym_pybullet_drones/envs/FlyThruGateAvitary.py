@@ -112,7 +112,7 @@ class FlyThruGateAvitary(BaseRLAviary):
         if out_of_bounds:
             reward = -10.0
             return reward
-        
+         
         # Total reward (can tune coefficients)
         reward = (
             2.0 * distance_reward +      

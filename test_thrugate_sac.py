@@ -29,7 +29,10 @@ def test(args):
     ################## Configuration ##################
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = args.record
-    DEFAULT_OUTPUT_FOLDER = 'results_sac_thrugate/'
+    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_sac_thrugate/'
+    if os.path.exists(DEFAULT_OUTPUT_FOLDER) is False:
+        os.makedirs(DEFAULT_OUTPUT_FOLDER)
+
     DEFAULT_OBS = ObservationType('kin')
     DEFAULT_ACT = ActionType('rpm')
 
@@ -67,11 +70,8 @@ def test(args):
 
     # Initialize SAC agent
     print("\nInitializing SAC agent...")
-    sac_agent = SACAgent(
-        state_dim=state_dim,
-        action_dim=action_dim,
-        hidden_dim=hidden_dim
-    )
+    sac_agent = SACAgent(state_dim, action_dim, hidden_dim=128,
+                    lr=3e-4, gamma=0.99, tau=0.005)
 
     # Load pretrained model
     checkpoint_path = args.model_path
@@ -87,6 +87,7 @@ def test(args):
     test_rewards = []
     test_lengths = []
     success_count = 0
+    success_times = []
 
     print(f"\nStarting test for {total_test_episodes} episodes...")
     print("-" * 88)
@@ -118,6 +119,7 @@ def test(args):
                 # Check if drone passed the gate (reward > 5 means successful)
                 if ep_reward > 5:
                     success_count += 1
+                    success_times.append(ep_length / env.CTRL_FREQ)
                 break
 
         # Store episode statistics
@@ -143,6 +145,10 @@ def test(args):
     print(f"Average Length:        {np.mean(test_lengths):.2f}")
     print(f"Success Rate:          {success_count}/{total_test_episodes} "
           f"({100 * success_count / total_test_episodes:.1f}%)")
+    if success_times:
+        print(f"Average Success Time:  {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
+        print(f"Best Success Time:     {np.min(success_times):.2f}s")
+        print(f"Worst Success Time:    {np.max(success_times):.2f}s")
     print("=" * 88)
 
     # Save results to file
@@ -162,7 +168,11 @@ def test(args):
         f.write("Episode Details:\n")
         f.write("-" * 88 + "\n")
         for i, (reward, length) in enumerate(zip(test_rewards, test_lengths)):
-            f.write(f"Episode {i+1}: Reward = {reward:.2f}, Length = {length}\n")
+            f.write(f"Episode {i+1}: Reward = {reward:.2f}, Length = {length}")
+            if reward > 5:
+                f.write(f", Success time = {length/env.CTRL_FREQ:.2f}s")
+            f.write("\n")
+        f.write("\nSuccess times (s): " + ", ".join([f"{t:.2f}" for t in success_times]) + "\n")
 
     print(f"\nResults saved to: {results_file}")
 
@@ -174,7 +184,7 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test SAC agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='log_dir/sac_thrugate_20251202_151920/sac_model_final.pt',
+                       default='log_dir/sac_thrugate_20251207_001940/sac_model_final.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=10,
                        help='Number of test episodes')

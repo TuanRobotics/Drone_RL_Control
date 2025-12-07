@@ -162,6 +162,9 @@ class PPO:
         advantages = rewards.detach() - old_state_values.detach() # compute A
 
         # Optimize policy for K epochs
+        total_policy_loss = 0.0
+        total_value_loss = 0.0
+        total_entropy = 0.0
         for _ in range(self.K_epochs):
 
             # Evaluating old actions and values
@@ -178,18 +181,28 @@ class PPO:
             surr2 = torch.clamp(ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages
 
             # final loss of clipped objective PPO
-            loss = -torch.min(surr1, surr2) + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
+            policy_loss = -torch.min(surr1, surr2)
+            value_loss = 0.5 * self.MseLoss(state_values, rewards)
+            loss = policy_loss + value_loss - 0.01 * dist_entropy
 
             # take gradient step
             self.optimizer.zero_grad()
             loss.mean().backward()
             self.optimizer.step()
 
+            total_policy_loss += policy_loss.mean().item()
+            total_value_loss += value_loss.mean().item()
+            total_entropy += dist_entropy.mean().item()
+
         # Copy new weights into old policy
         self.policy_old.load_state_dict(self.policy.state_dict())
 
         # clear buffer
         self.buffer.clear()
+        # Return averaged losses for logging
+        return (total_policy_loss / self.K_epochs,
+                total_value_loss / self.K_epochs,
+                total_entropy / self.K_epochs)
 
     def save(self, checkpoint_path):
         torch.save(self.policy_old.state_dict(), checkpoint_path)

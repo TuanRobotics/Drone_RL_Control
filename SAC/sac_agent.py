@@ -121,7 +121,7 @@ class SACAgent:
     def __init__(self,
                  state_dim,
                  action_dim,
-                 hidden_dim=256,
+                 hidden_dim=128,
                  lr=3e-4,
                  gamma=0.99,
                  tau=0.005,

@@ -70,7 +70,7 @@ def train(env, agent, n_episodes=5000, score_limit=300.0, explore_episode=50,
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['episode', 'timestep', 'reward', 'cumulative_reward', 'done'])
     
-    print(f"📊 Logging training data to: {csv_path}")
+    print(f"Logging training data to: {csv_path}")
 
     for i_episode in range(1, n_episodes+1):
         state, info = env.reset()

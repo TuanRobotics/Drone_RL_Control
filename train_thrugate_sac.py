@@ -46,7 +46,8 @@ def train_sac(num_episodes=5000,
     action_dim = env.action_space.shape[1]  # 4 - number of action
 
     # Create agent and replay buffer
-    agent = SACAgent(state_dim, action_dim)
+    agent = SACAgent(state_dim, action_dim, hidden_dim=128,
+                    lr=3e-4, gamma=0.99, tau=0.005)
     replay_buffer = ReplayBuffer(buffer_size)
 
     # Metrics
@@ -245,13 +246,13 @@ if __name__ == "__main__":
     agent, episode_rewards, eval_rewards = train_sac(
         num_episodes=5000,
         max_steps=1000,
-        batch_size=256,
+        batch_size=128,
         buffer_size=1000000,
         start_steps=10000,      # Random exploration steps
         update_after=1000,      # Start training after this many steps
         update_every=50,        # Update frequency
-        save_every=100,         # Save model every N episodes
-        eval_every=50,          # Evaluate every N episodes
+        save_every=500,         # Save model every N episodes
+        eval_every=500,          # Evaluate every N episodes
         num_eval_episodes=5,    # Number of episodes for evaluation
         gui=False               # Set True to see visualization
     )

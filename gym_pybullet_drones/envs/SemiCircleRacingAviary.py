@@ -1,6 +1,8 @@
 import numpy as np
 import pybullet as p
 import pkg_resources
+from gymnasium import spaces
+from collections import deque
 
 from gym_pybullet_drones.envs.BaseRacingRLAviary import BaseRacingRLAviary
 from gym_pybullet_drones.utils.enums import DroneModel, ObservationType, ActionType, Physics
@@ -22,13 +24,17 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
                  act: ActionType = ActionType.RPM,
                  radius: float = 4.0,
                  center_xy: tuple = (0.0, 0.0)):
+        # RNG for spawn sampling
+        self._rng = np.random.default_rng() # Initialize with default seed
         self.EPISODE_LEN_SEC = 12
         self.collided = False
         self._radius = radius
         self._center_xy = np.array(center_xy, dtype=float)
-        self._num_gates = 5
-        self._gate_span = np.pi  # Half circle
-        self._gate_half_depth = 0.6
+        self._global_yaw_offset = 0.0
+        self._num_gates = 7
+        self._gate_span = np.pi  # Half circle (180 degrees)
+        self._gate_half_depth = 0.6 # Half depth of each gate along the track direction
+        self.success_buffer = deque(maxlen=500)  # store successful pass poses
 
         super().__init__(drone_model=drone_model,
                          num_drones=1,
@@ -47,8 +53,11 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
     def _addObstacles(self):
         """Place five gates on a semicircle and store their metadata."""
         super()._addObstacles()
-        self.racing_setup, self.gate_yaws = self._build_semicircle_setup()
-        self.passing_flag = [False for _ in range(len(self.racing_setup))]
+
+        self.racing_setup, self.gate_yaws = self._build_semicircle_setup() # Build semicircular gate setup
+        preset_flags = getattr(self, "_preset_passing_flags", None)
+        self.passing_flag = preset_flags if preset_flags is not None else [False for _ in range(len(self.racing_setup))]
+        self._preset_passing_flags = None
         gate_ids = []
         for idx in sorted(self.racing_setup.keys()):
             gate_center = self.racing_setup[idx][0]
@@ -74,7 +83,7 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
             cx = self._center_xy[0] + self._radius * np.cos(ang)
             cy = self._center_xy[1] + self._radius * np.sin(ang)
             cz = self.h / 2 + self.offset
-            yaw = ang + np.pi / 2  # Make each gate face along the tangent
+            yaw = ang + np.pi / 2 + self._global_yaw_offset  # Make each gate face along the tangent
             rot = np.array([
                 [np.cos(yaw), -np.sin(yaw), 0.0],
                 [np.sin(yaw), np.cos(yaw), 0.0],
@@ -90,6 +99,47 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
             setup[idx] = [list(np.array([cx, cy, cz]) + rot.dot(off)) for off in offsets]
             yaws[idx] = yaw
         return setup, yaws
+
+    def _observationSpace(self):
+        """Use a fixed 36-dim kinematic racing observation to match _computeObs."""
+        if self.OBS_TYPE == ObservationType.RGB:
+            return super()._observationSpace()
+        lo = -np.inf * np.ones(36)
+        hi = np.inf * np.ones(36)
+        return spaces.Box(low=lo, high=hi, dtype=np.float32)
+
+    def reset(self, seed: int = None, options: dict | None = None):
+        """Reset env with optional distributed track spawn for curriculum."""
+        if options is None:
+            options = {}
+        spawn_mode = options.get("spawn", "default")  # "default" | "random_track" | "success_replay"
+        # Optional track randomization per episode
+        if options.get("random_track_layout", False):
+            rmin, rmax = options.get("radius_range", (3.0, 6.0))
+            self._radius = float(self._rng.uniform(rmin, rmax))
+            jitter = float(options.get("center_jitter", 1.0))
+            self._center_xy = np.array([self._rng.uniform(-jitter, jitter), self._rng.uniform(-jitter, jitter)])
+            yaw_jitter = float(options.get("yaw_jitter", 0.4))
+            self._global_yaw_offset = float(self._rng.uniform(-yaw_jitter, yaw_jitter))
+        if spawn_mode == "success_replay" and len(self.success_buffer) > 0:
+            xyz, yaw, passed_flags = self._sample_success_spawn(options)
+            self.INIT_XYZS[0, :] = xyz
+            self.INIT_RPYS[0, :] = np.array([0.0, 0.0, yaw])
+            self.prev_pos = xyz
+            self._preset_passing_flags = passed_flags
+        elif spawn_mode == "random_track":
+            xyz, yaw, passed_flags = self._sample_track_spawn(options)
+            self.INIT_XYZS[0, :] = xyz
+            self.INIT_RPYS[0, :] = np.array([0.0, 0.0, yaw])
+            self.prev_pos = xyz
+            self._preset_passing_flags = passed_flags
+        return super().reset(seed=seed, options=options)
+
+    def _computeObs(self):
+        if self.OBS_TYPE == ObservationType.RGB:
+            return super()._computeObs()
+        obs = super()._computeObs()
+        return np.asarray(obs, dtype=np.float32).reshape(-1)
 
     def _computeReward(self):
         state = self._getDroneStateVector(0)
@@ -125,6 +175,8 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
             reward = -10.0
         else:
             reward = progress_reward
+        if passing:
+            self.success_buffer.append((pos.copy(), self.gate_yaws[next_gate], next_gate))
         return reward
 
     def _is_inside_gate(self, position, gate_idx):
@@ -208,3 +260,33 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
                                       state[16:20]
                                       ]).reshape(20,)
         return norm_and_clipped
+
+    def _sample_track_spawn(self, options: dict):
+        """Sample a hover pose near a random gate, oriented toward the next gate."""
+        gate_idx = int(self._rng.integers(0, self._num_gates))
+        center = np.array(self.racing_setup[gate_idx][0])
+        yaw = self.gate_yaws[gate_idx]
+        back_offset = float(options.get("back_offset", 0.8))
+        noise_xy = float(options.get("noise_xy", 0.2))
+        noise_z = float(options.get("noise_z", 0.05))
+
+        # Move slightly upstream along the track tangent and add small noise
+        tangent = np.array([np.cos(yaw), np.sin(yaw)])
+        pos_xy = center[:2] - back_offset * tangent + self._rng.normal(0, noise_xy, size=2)
+        pos_z = center[2] + self._rng.normal(0, noise_z)
+        xyz = np.array([pos_xy[0], pos_xy[1], pos_z])
+
+        # Mark previous gates as already passed so the next target is gate_idx
+        passed_flags = [i < gate_idx for i in range(self._num_gates)] # Gates with index less than gate_idx are considered passed
+        return xyz, yaw, passed_flags
+
+    def _sample_success_spawn(self, options: dict):
+        """Sample a pose from previously successful gate passes."""
+        idx = int(self._rng.integers(0, len(self.success_buffer)))
+        pos, yaw, gate_idx = self.success_buffer[idx]
+        noise_xy = float(options.get("noise_xy", 0.05))
+        noise_z = float(options.get("noise_z", 0.05))
+        xyz = np.array(pos) + self._rng.normal(0, [noise_xy, noise_xy, noise_z])
+        # Gates up to and including gate_idx are treated as passed; next target is gate_idx+1
+        passed_flags = [i <= gate_idx for i in range(self._num_gates)]
+        return xyz, yaw, passed_flags

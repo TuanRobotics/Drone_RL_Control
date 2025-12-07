@@ -58,6 +58,8 @@ def train():
     if not os.path.exists(os.path.join(log_dir, str(run_num))):
         os.mkdir(os.path.join(log_dir, str(run_num)))
     checkpoint_path = log_dir + "ppo_drone.pth"
+    plot_dir = os.path.join(log_dir, "plots_ppo")
+    os.makedirs(plot_dir, exist_ok=True)
 
     print("current logging run number for " + " gym pybulet drone : ", run_num)
     print("logging at : " + log_f_name)
@@ -77,6 +79,10 @@ def train():
 
     log_running_reward = 0
     log_running_episodes = 0
+    policy_loss_hist = []
+    value_loss_hist = []
+    entropy_hist = []
+    reward_hist = []
 
     ppo_agent = PPO(state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, action_std)
 
@@ -104,7 +110,10 @@ def train():
 
             # update PPO agent
             if time_step % update_timestep == 0:
-                ppo_agent.update()
+                pol_loss, val_loss, entropy = ppo_agent.update()
+                policy_loss_hist.append(pol_loss)
+                value_loss_hist.append(val_loss)
+                entropy_hist.append(entropy)
 
             if time_step % action_std_decay_freq == 0:
                 ppo_agent.decay_action_std(action_std_decay_rate, min_action_std)
@@ -154,11 +163,46 @@ def train():
 
         log_running_reward += current_ep_reward
         log_running_episodes += 1
+        reward_hist.append(current_ep_reward)
 
         i_episode += 1
 
     log_f.close()
     env.close()
+    # Plot reward and losses
+    try:
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.plot(reward_hist)
+        plt.xlabel("Episode")
+        plt.ylabel("Episode Reward")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(plot_dir, "episode_rewards.png"))
+        plt.close()
+
+        if policy_loss_hist:
+            plt.figure()
+            plt.plot(policy_loss_hist, label="Policy loss")
+            plt.plot(value_loss_hist, label="Value loss")
+            plt.xlabel("Update idx")
+            plt.ylabel("Loss")
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(os.path.join(plot_dir, "losses.png"))
+            plt.close()
+
+            plt.figure()
+            plt.plot(entropy_hist)
+            plt.xlabel("Update idx")
+            plt.ylabel("Entropy")
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(os.path.join(plot_dir, "entropy.png"))
+            plt.close()
+    except Exception as e:
+        print(f"Plotting failed: {e}")
 
     # print total training time
     print("============================================================================================")
@@ -167,7 +211,6 @@ def train():
     print("Finished training at (GMT) : ", end_time)
     print("Total training time  : ", end_time - start_time)
     print("============================================================================================")
-
 
 if __name__ == '__main__':
     train()
