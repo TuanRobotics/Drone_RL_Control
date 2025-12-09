@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import time
 from datetime import datetime
@@ -16,7 +18,7 @@ from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
 
 #################################### Testing ###################################
-def test():
+def test(args):
     print("============================================================================================")
 
     ################## hyperparameters ##################
@@ -71,7 +73,10 @@ def test():
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     run_num_pretrained = 0      #### set this to load a particular checkpoint num
 
-    checkpoint_path = "log_dir/thrugate_ppo/19980_ppo_drone.pth"
+    # checkpoint_path = "log_dir/thrugate_ppo/19980_ppo_drone.pth"
+    
+    checkpoint_path = args.model_path
+
     print("loading network from : " + checkpoint_path)
 
     ppo_agent.load(checkpoint_path)
@@ -139,4 +144,11 @@ def test():
             f.write("\nSuccess times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
 
 if __name__ == '__main__':
-    test()
+    parser = argparse.ArgumentParser(description='Test PPO agent for drone gate navigation')
+    parser.add_argument('--model_path', type=str,
+                       default='sac_drone_20241201_120000/sac_model_final.pt',
+                       help='Path to the trained model checkpoint')
+
+    args = parser.parse_args()
+
+    test(args)

@@ -59,7 +59,7 @@ def train_sac(num_episodes=5000,
 
     # Create save directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    save_dir = f"sac_training\\sac_drone_{timestamp}"
+    save_dir = f"sac_training\\sac_{timestamp}"
     os.makedirs(save_dir, exist_ok=True)
 
     total_steps = 0
@@ -143,12 +143,13 @@ def train_sac(num_episodes=5000,
 
     env.close()
 
-    # Final save
+    # Final save + plot
+    print(f"{'='*60}\n")
     agent.save(os.path.join(save_dir, "sac_model_final.pt"))
     plot_training_curves(episode_rewards, eval_rewards, q1_losses,
                          policy_losses, save_dir, "final")
 
-    print(f"\nTraining completed! Models saved in {save_dir}")
+    print(f"\nTraining completed! Final model saved in {save_dir}")
 
     return agent, episode_rewards, eval_rewards
 

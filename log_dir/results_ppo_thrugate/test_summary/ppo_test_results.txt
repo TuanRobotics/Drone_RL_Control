@@ -1,21 +1,21 @@
 PPO FlyThruGateAvitary Test Results
-Checkpoint: log_dir/thrugate_ppo/19980_ppo_drone.pth
+Checkpoint: ppo_training\ppo_20251209_182559\ppo_model_final.pt
 Episodes: 10
-Avg reward: 408.63 ± 247.05
+Avg reward: 1152.60 ± 280.94
 Success rate: 10/10 (100.0%)
-Avg success time: 6.10s ± 2.20s
-Best: 1.00s | Worst: 8.07s
+Avg success time: 7.95s ± 0.34s
+Best: 6.93s | Worst: 8.07s
 
 Episode details:
-Ep 1: reward=523.87, len=224, success_time=7.47s
-Ep 2: reward=210.27, len=211, success_time=7.03s
-Ep 3: reward=293.01, len=242, success_time=8.07s
-Ep 4: reward=495.87, len=222, success_time=7.40s
-Ep 5: reward=651.03, len=204, success_time=6.80s
-Ep 6: reward=83.03, len=97, success_time=3.23s
-Ep 7: reward=17.82, len=30, success_time=1.00s
-Ep 8: reward=817.60, len=205, success_time=6.83s
-Ep 9: reward=631.74, len=242, success_time=8.07s
-Ep 10: reward=362.07, len=152, success_time=5.07s
+Ep 1: reward=1333.13, len=242, success_time=8.07s
+Ep 2: reward=1364.74, len=242, success_time=8.07s
+Ep 3: reward=833.02, len=208, success_time=6.93s
+Ep 4: reward=1269.07, len=242, success_time=8.07s
+Ep 5: reward=971.92, len=242, success_time=8.07s
+Ep 6: reward=1220.28, len=242, success_time=8.07s
+Ep 7: reward=726.32, len=242, success_time=8.07s
+Ep 8: reward=1282.11, len=242, success_time=8.07s
+Ep 9: reward=1672.57, len=242, success_time=8.07s
+Ep 10: reward=852.80, len=242, success_time=8.07s
 
-Success times (s): 7.47, 7.03, 8.07, 7.40, 6.80, 3.23, 1.00, 6.83, 8.07, 5.07
+Success times (s): 8.07, 8.07, 6.93, 8.07, 8.07, 8.07, 8.07, 8.07, 8.07, 8.07
