@@ -109,37 +109,37 @@ def train_sac(num_episodes=5000,
 
         # Logging
         if (episode + 1) % 10 == 0:
-            avg_reward = np.mean(episode_rewards[-10:])
-            avg_length = np.mean(episode_lengths[-10:])
+            avg_reward_10 = np.mean(episode_rewards[-10:])
             print(f"Episode {episode+1}/{num_episodes} | "
                   f"Steps: {total_steps} | "
                   f"Reward: {episode_reward:.2f} | "
-                  f"Avg(10): {avg_reward:.2f} | "
+                  f"Avg(10): {avg_reward_10:.2f} | "
                   f"Length: {episode_length}")
-
+        
+        avg_reward_100 = np.mean(episode_rewards[-100:])
         # Evaluation
         if (episode + 1) % eval_every == 0:
             eval_reward = evaluate_policy(env, agent, num_eval_episodes)
             eval_rewards.append(eval_reward)
             print(f"\n{'='*60}")
             print(
-                f"Evaluation at Episode {episode+1}: Avg Reward = {eval_reward:.2f}"
+                f"Avg Reward over 100 episodes: {avg_reward_100:.2f}\n"
+                f"Evaluation at Episode {episode+1}: Avg Evaluated Reward = {eval_reward:.2f}"
             )
             print(f"{'='*60}\n")
 
         # Early stopping if solved
-        if len(episode_rewards) >= 100:
-            if np.mean(episode_rewards[-100:]) >= 200:
-                print(f"\nEnvironment solved in {episode+1} episodes!")
-                print(f"Average Reward: {np.mean(episode_rewards[-100:]):.2f}")
-                print(f"{'='*60}\n")
-                break
+        if avg_reward_100 >= 120:
+            print(f"\nEnvironment solved in {episode+1} episodes!")
+            print(f"Average Reward: {avg_reward_100:.2f}")
+            print(f"{'='*60}\n")
+            break
 
-        # Save model
-        if (episode + 1) % save_every == 0:
-            # agent.save(os.path.join(save_dir, f"sac_model_ep{episode+1}.pt"))
-            plot_training_curves(episode_rewards, eval_rewards, q1_losses,
-                                 policy_losses, save_dir, episode + 1)
+        # # Save model
+        # if (episode + 1) % save_every == 0:
+        #     # agent.save(os.path.join(save_dir, f"sac_model_ep{episode+1}.pt"))
+        #     plot_training_curves(episode_rewards, eval_rewards, q1_losses,
+        #                          policy_losses, save_dir, episode + 1)
 
     env.close()
 
@@ -234,9 +234,9 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
 if __name__ == "__main__":
     # Training configuration
     agent, episode_rewards, eval_rewards = train_sac(
-        num_episodes=5000,
+        num_episodes=3000,
         max_steps=1000,
-        batch_size=256,
+        batch_size=64,
         buffer_size=1000000,
         start_steps=10000,      # Random exploration steps
         update_after=1000,      # Start training after this many steps

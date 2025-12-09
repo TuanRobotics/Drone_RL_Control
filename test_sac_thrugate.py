@@ -29,19 +29,12 @@ def test(args):
     ################## Configuration ##################
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = args.record
-    DEFAULT_OUTPUT_FOLDER = 'results_sac_thrugate/'
     DEFAULT_OBS = ObservationType('kin')
     DEFAULT_ACT = ActionType('rpm')
 
     total_test_episodes = args.episodes
     hidden_dim = 256
     #####################################################
-
-    # Create output folder
-    filename = os.path.join(DEFAULT_OUTPUT_FOLDER,
-                           'recording_' + datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
-    if not os.path.exists(filename):
-        os.makedirs(filename + '/')
 
     # Initialize environment
     print("\nInitializing environment...")
@@ -145,27 +138,6 @@ def test(args):
           f"({100 * success_count / total_test_episodes:.1f}%)")
     print("=" * 88)
 
-    # Save results to file
-    results_file = os.path.join(filename, 'test_results.txt')
-    with open(results_file, 'w') as f:
-        f.write("SAC Drone Gate Navigation - Test Results\n")
-        f.write("=" * 88 + "\n\n")
-        f.write(f"Model: {checkpoint_path}\n")
-        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        f.write(f"Total Episodes: {total_test_episodes}\n")
-        f.write(f"Average Reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}\n")
-        f.write(f"Max Reward: {np.max(test_rewards):.2f}\n")
-        f.write(f"Min Reward: {np.min(test_rewards):.2f}\n")
-        f.write(f"Average Length: {np.mean(test_lengths):.2f}\n")
-        f.write(f"Success Rate: {success_count}/{total_test_episodes} "
-                f"({100 * success_count / total_test_episodes:.1f}%)\n\n")
-        f.write("Episode Details:\n")
-        f.write("-" * 88 + "\n")
-        for i, (reward, length) in enumerate(zip(test_rewards, test_lengths)):
-            f.write(f"Episode {i+1}: Reward = {reward:.2f}, Length = {length}\n")
-
-    print(f"\nResults saved to: {results_file}")
-
 
 # ============================================================================
 # Main
@@ -176,9 +148,9 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str,
                        default='sac_drone_20241201_120000/sac_model_final.pt',
                        help='Path to the trained model checkpoint')
-    parser.add_argument('--episodes', type=int, default=10,
+    parser.add_argument('--episodes', type=int, default=1,
                        help='Number of test episodes')
-    parser.add_argument('--record', type=bool, default=True,
+    parser.add_argument('--record', type=bool, default=False,
                        help='Record video of the test')
     parser.add_argument('--gui', type=bool, default=True,
                        help='Enable GUI visualization')

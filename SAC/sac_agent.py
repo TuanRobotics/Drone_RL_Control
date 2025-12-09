@@ -125,7 +125,7 @@ class SACAgent:
                  lr=3e-4,
                  gamma=0.99,
                  tau=0.005,
-                 alpha=0.2,
+                 alpha=0.3,
                  automatic_entropy_tuning=True):
 
         self.gamma = gamma
