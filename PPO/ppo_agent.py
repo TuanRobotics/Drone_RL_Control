@@ -50,6 +50,8 @@ class ActorCritic(nn.Module):
 
 
     def act(self, state):
+        # Replace any NaNs/Infs in the state to keep the distribution valid
+        state = torch.nan_to_num(state, nan=0.0, posinf=0.0, neginf=0.0)
         action_mean = self.actor(state)
         cov_mat = torch.diag(self.action_var).unsqueeze(dim=0)
         dist = MultivariateNormal(action_mean, cov_mat)
@@ -61,6 +63,10 @@ class ActorCritic(nn.Module):
         return action.detach(), action_logprob.detach(), state_val.detach()
 
     def evaluate(self, state, action):
+
+        # Guard against invalid inputs that would create an invalid distribution
+        state = torch.nan_to_num(state, nan=0.0, posinf=0.0, neginf=0.0)
+        action = torch.nan_to_num(action, nan=0.0, posinf=0.0, neginf=0.0)
 
         action_mean = self.actor(state)
 

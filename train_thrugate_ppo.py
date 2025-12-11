@@ -45,7 +45,7 @@ def train_ppo():
     ################ PPO hyperparameters ################
     #update_timestep = max_ep_len * 4      # update policy every n timesteps
     max_steps = 1000 # max steps per episode
-    num_episodes = 5000 # max training episodes
+    num_episodes = 3000 # max training episodes
     K_epochs = 80  # update policy for K epochs in one PPO update
 
     eps_clip = 0.2  # clip parameter for PPO
@@ -75,8 +75,8 @@ def train_ppo():
     # print(env.EPISODE_LEN_SEC)
     # print(env.CTRL_FREQ)
     # print("step per episode", env.EPISODE_LEN_SEC * env.CTRL_FREQ)
-    update_after = 1000  # num timesteps to collect before first PPO update
-    update_timestep = 50
+    update_after = 2000  # num timesteps to collect before first PPO update
+    update_timestep = 10
     print_freq = 50  # print avg reward in the interval (in num timesteps)
     log_freq = 50
     # save_model_freq = int(1e5)  # save model frequency (in num timesteps)
@@ -108,7 +108,7 @@ def train_ppo():
             action = np.expand_dims(action, axis=0)
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
-            #print("Obs:", obs, "\tAction", action, "\tReward:", reward, "\tTerminated:", terminated, "\tTruncated:", truncated)
+            # print("Obs:", obs, "\tAction", action, "\tReward:", reward, "\tTerminated:", terminated, "\tTruncated:", truncated)
             # saving reward and is_terminals
             ppo_agent.buffer.rewards.append(reward)
             ppo_agent.buffer.is_terminals.append(done)
