@@ -1,0 +1,12 @@
+SAC FlyThruGateAvitary Test Results
+Checkpoint: sac_training\sac_drone_20251202_181425\sac_model_final.pt
+Episodes: 5
+Avg reward: 104.53 ± 0.00
+Success rate: 0/5 (0.0%)
+
+Episode details:
+Ep 1: reward=104.53, len=61, success_time=2.03s
+Ep 2: reward=104.53, len=61, success_time=2.03s
+Ep 3: reward=104.53, len=61, success_time=2.03s
+Ep 4: reward=104.53, len=61, success_time=2.03s
+Ep 5: reward=104.53, len=61, success_time=2.03s

@@ -56,7 +56,7 @@ def train(env, agent, n_episodes=5000, score_limit=300.0, explore_episode=50,
         learn_every: Số steps giữa mỗi lần học (TD3 standard = 1)
         warmup_steps: Số steps random trước khi bắt đầu học
     """
-    scores_deque = deque(maxlen=100)
+    scores_deque = []
     scores = []
     test_scores = []
     max_score = -np.inf
@@ -128,13 +128,15 @@ def train(env, agent, n_episodes=5000, score_limit=300.0, explore_episode=50,
             agent.episode_end()
 
         scores_deque.append(score)
-        print(scores_deque)
+        # print(scores_deque)
         avg_score_100 = np.mean(scores_deque)
         scores.append((i_episode, score, avg_score_100))
         
-        if i_episode % 5 == 0 or i_episode == 1:
-            print('\rEpisode {}\tAverage Score: {:.2f}\tScore: {:.2f}\tSteps: {}'.format(
-                i_episode, avg_score_100, score, total_steps), end="")
+        if i_episode % 10 == 0:          
+            print(f"Episode {i_episode}/{n_episodes} | "
+                f"Steps: {total_steps} | "
+                f"Reward: {score:.2f} | "
+                f"Avg(10): {avg_score_100:.2f}")
 
         # # Testing and saving
         # if i_episode % test_f == 0 or avg_score_100 > score_limit:
@@ -239,7 +241,7 @@ if __name__ == '__main__':
     print("Starting TD3 Drone Training...")
     scores, test_scores = train(
         env, agent, 
-        n_episodes=200,
+        n_episodes=3000,
         csv_filename=csv_filename,
         learn_every=1,  # Learn after every step
         warmup_steps=50  # 50 steps random to fill replay buffer

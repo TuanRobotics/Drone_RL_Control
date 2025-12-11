@@ -41,7 +41,7 @@ def test(args):
     #####################################################
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = False
-    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_ppo_thrugate'
+    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_ppo'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
@@ -60,9 +60,7 @@ def test(args):
 
     # state space dimension
     state_dim = 12
-
     # action space dimension
-
     action_dim = 4
 
     # initialize a PPO agent
@@ -76,12 +74,13 @@ def test(args):
     # checkpoint_path = "log_dir/thrugate_ppo/19980_ppo_drone.pth"
     
     checkpoint_path = args.model_path
+    
 
-    print("loading network from : " + checkpoint_path)
+    print("Loading network from : " + checkpoint_path)
 
     ppo_agent.load(checkpoint_path)
 
-    print("--------------------------------------------------------------------------------------------")
+    print("=" * 60)
 
     rewards = []
     lengths = []
@@ -103,14 +102,18 @@ def test(args):
                 env.render()
                 sync(i, start, env.CTRL_TIMESTEP)
             if terminated or truncated:
-                if ep_reward > 5:
+                if ep_reward > 10:
                     successes += 1
                     success_times.append(ep_len / env.CTRL_FREQ)
+                    print(f"Episode {ep+1} succeeded in {ep_len/env.CTRL_FREQ:.2f} seconds.")
                 break
         rewards.append(ep_reward)
         lengths.append(ep_len)
         ppo_agent.buffer.clear()
-        print(f"Episode {ep+1}/{total_test_episodes} | Reward {ep_reward:.2f} | Len {ep_len} | Success {'✓' if ep_reward>5 else '✗'}")
+        print(f"Episode {ep+1}/{total_test_episodes} | "
+              f"Reward {ep_reward:.2f} | "
+              f"Len {ep_len} | "
+              f"Success {'✓' if ep_reward>5 else '✗'}")
 
     env.close()
     # Summary

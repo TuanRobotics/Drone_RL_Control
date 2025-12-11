@@ -1,0 +1,16 @@
+PPO FlyThruGateAvitary Test Results
+Checkpoint: td3_training\td3_20251211_023302\td3_model_final.pt
+Episodes: 5
+Avg reward: 65.24 ± 0.00
+Success rate: 5/5 (100.0%)
+Avg success time: 2.13s ± 0.00s
+Best: 2.13s | Worst: 2.13s
+
+Episode details:
+Ep 1: reward=65.24, len=64, success_time=2.13s
+Ep 2: reward=65.24, len=64, success_time=2.13s
+Ep 3: reward=65.24, len=64, success_time=2.13s
+Ep 4: reward=65.24, len=64, success_time=2.13s
+Ep 5: reward=65.24, len=64, success_time=2.13s
+
+Success times (s): 2.13, 2.13, 2.13, 2.13, 2.13

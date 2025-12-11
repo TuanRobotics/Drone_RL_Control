@@ -44,8 +44,8 @@ def train_ppo():
 
     ################ PPO hyperparameters ################
     #update_timestep = max_ep_len * 4      # update policy every n timesteps
-    max_training_timesteps = int(
-        4e5)  # break training loop if timeteps > max_training_timesteps
+    max_steps = 1000 # max steps per episode
+    num_episodes = 5000 # max training episodes
     K_epochs = 80  # update policy for K epochs in one PPO update
 
     eps_clip = 0.2  # clip parameter for PPO
@@ -68,16 +68,17 @@ def train_ppo():
     # os.makedirs(plot_dir, exist_ok=True)
 
     # print("current logging run number for " + " gym pybulet drone : ", run_num)
-    print("logging at : " + log_f_name)
-    log_f = open(log_f_name, "w+")
-    log_f.write('episode,timestep,reward\n')
+    # print("logging at : " + log_f_name)
+    # log_f = open(log_f_name, "w+")
+    # log_f.write('episode,timestep,reward\n')
     # # log avg reward in the interval (in num timesteps)
     # print(env.EPISODE_LEN_SEC)
     # print(env.CTRL_FREQ)
     # print("step per episode", env.EPISODE_LEN_SEC * env.CTRL_FREQ)
-    update_timestep = env.EPISODE_LEN_SEC * env.CTRL_FREQ * 4
-    print_freq = env.EPISODE_LEN_SEC * env.CTRL_FREQ * 10  # print avg reward in the interval (in num timesteps)
-    log_freq = env.EPISODE_LEN_SEC * env.CTRL_FREQ * 2
+    update_after = 1000  # num timesteps to collect before first PPO update
+    update_timestep = 50
+    print_freq = 50  # print avg reward in the interval (in num timesteps)
+    log_freq = 50
     # save_model_freq = int(1e5)  # save model frequency (in num timesteps)
     # printing and logging variables
     print_running_reward = 0
@@ -96,13 +97,13 @@ def train_ppo():
     start_time = datetime.now().replace(microsecond=0)
     print("Started training at (GMT) : ", start_time)
 
-    time_step = 0
-    i_episode = 0
-    while time_step <= max_training_timesteps:
+    total_timesteps = 0
+
+    for i_episode in range(num_episodes):
         obs, info = env.reset(seed=42, options={})
 
         current_ep_reward = 0
-        for i in range((env.EPISODE_LEN_SEC) * env.CTRL_FREQ):
+        for i in range(max_steps):
             action = ppo_agent.select_action(obs)
             action = np.expand_dims(action, axis=0)
             obs, reward, terminated, truncated, info = env.step(action)
@@ -112,43 +113,32 @@ def train_ppo():
             ppo_agent.buffer.rewards.append(reward)
             ppo_agent.buffer.is_terminals.append(done)
 
-            time_step += 1
+            total_timesteps += 1
             current_ep_reward += reward
 
             # update PPO agent
-            if time_step % update_timestep == 0:
+            if total_timesteps >= update_after and total_timesteps % update_timestep == 0:
                 pol_loss, val_loss, entropy = ppo_agent.update()
                 policy_loss_hist.append(pol_loss)
                 value_loss_hist.append(val_loss)
                 entropy_hist.append(entropy)
 
-            if time_step % action_std_decay_freq == 0:
+            if total_timesteps % action_std_decay_freq == 0:
                 ppo_agent.decay_action_std(action_std_decay_rate,
                                            min_action_std)
 
-            if time_step % log_freq == 0:
+            # if total_timesteps % log_freq == 0 and log_running_episodes > 0:
 
-                # log average reward till last episode
-                log_avg_reward = log_running_reward / log_running_episodes
-                log_avg_reward = round(log_avg_reward, 4)
+            #     # log average reward till last episode
+            #     log_avg_reward = log_running_reward / log_running_episodes
+            #     log_avg_reward = round(log_avg_reward, 4)
 
-                log_f.write('{}, {}, {}\n'.format(i_episode, time_step,
-                                                  log_avg_reward))
-                log_f.flush()
+            #     log_f.write('{}, {}, {}\n'.format(i_episode, total_timesteps,
+            #                                       log_avg_reward))
+            #     log_f.flush()
 
-                log_running_reward = 0
-                log_running_episodes = 0
-
-            if time_step % print_freq == 0:
-
-                # print average reward till last episode
-                print_avg_reward = print_running_reward / print_running_episodes
-                print_avg_reward = round(print_avg_reward, 2)
-
-                print("Episode : {} \t Timestep : {} \t Average Reward : " "{}".format(i_episode, time_step, print_avg_reward))
-
-                print_running_reward = 0
-                print_running_episodes = 0
+            #     log_running_reward = 0
+            #     log_running_episodes = 0
 
             # # save model weights
             # if time_step % save_model_freq == 0:
@@ -161,7 +151,7 @@ def train_ppo():
             #     print("--------------------------------------------------------------------------------------------")
 
             # break if the episode is over
-            if done:
+            if done or truncated:
                 break
 
         print_running_reward += current_ep_reward
@@ -171,31 +161,15 @@ def train_ppo():
         log_running_episodes += 1
         episode_rewards.append(current_ep_reward)
 
-        i_episode += 1
+        # Logging
+        if (i_episode + 1) % 10 == 0:
+            avg_reward_10 = np.mean(episode_rewards[-10:])
+            print(f"Steps {i_episode+1}/{num_episodes} | "
+                f"Steps: {total_timesteps} | "
+                f"Reward: {current_ep_reward:.2f} | "
+                f"Avg(10): {avg_reward_10:.2f} ")
 
-        # # Logging
-        # if (i_episode + 1) % 10 == 0:
-        #     avg_reward_10 = np.mean(episode_rewards[-10:])
-        #     print(f"Steps {time_step+1}/{max_training_timesteps} | "
-        #           #   f"Steps: {total_steps} | "
-        #           f"Reward: {current_ep_reward:.2f} | "
-        #           f"Avg(10): {avg_reward_10:.2f} | "
-        #           #   f"Length: {episode_length}"
-        #           )
-
-        # avg_reward_100 = np.mean(episode_rewards[-100:])
-        # # Evaluation
-        # if (episode + 1) % eval_every == 0:
-        #     eval_reward = evaluate_policy(env, agent, num_eval_episodes)
-        #     eval_rewards.append(eval_reward)
-        #     print(f"\n{'='*60}")
-        #     print(
-        #         f"Avg Reward over 100 episodes: {avg_reward_100:.2f}\n"
-        #         f"Evaluation at Episode {episode+1}: Avg Evaluated Reward = {eval_reward:.2f}"
-        #     )
-        #     print(f"{'='*60}\n")
-
-    log_f.close()
+    # log_f.close()
     env.close()
 
     # Final save + plot

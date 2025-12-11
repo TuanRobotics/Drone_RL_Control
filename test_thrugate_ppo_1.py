@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 import time
 from gym_pybullet_drones.utils.utils import sync
-
+from PPO.ppo_agent import PPO
 
 def test_agent(args):
     """
@@ -22,10 +22,26 @@ def test_agent(args):
         max_steps: max step per episode
         render: whether to render GUI (pybullet GUI/on-screen info)
     """
+    ################## hyperparameters ##################
 
+    max_ep_len = 1000           # max timesteps in one episode
+    action_std = 0.1            # set same std for action distribution which was used while saving
+
+    render = True              # render environment on screen
+    frame_delay = 0             # if required; add delay b/w frames
+
+    total_test_episodes = 10    # total num of testing episodes
+
+    K_epochs = 80               # update policy for K epochs
+    eps_clip = 0.2              # clip parameter for PPO
+    gamma = 0.99                # discount factor
+
+    lr_actor = 0.0003           # learning rate for actor
+    lr_critic = 0.001           # learning rate for critic
+    #####################################################
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = False
-    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_td3'
+    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_ppo'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
@@ -46,17 +62,12 @@ def test_agent(args):
 
     print(f"State dimension: {state_dim}")
     print(f"Action dimension: {action_dim}")
-
+    
+    # initialize a PPO agent
     print("\nInitializing agent...")
-    agent = TD3Agent(
-        Actor, Critic,
-        state_size=state_dim,
-        action_size=action_dim,
-    )
-
+    agent = PPO(state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, action_std)
     print("Agent initialized.")
     print("=" * 60)
-
     
     # Load pretrained model
     checkpoint_path = args.model_path
@@ -68,7 +79,7 @@ def test_agent(args):
     agent.load(checkpoint_path)
     print("=" * 60)
 
-    agent.eval_mode()
+    # agent.eval_mode()
 
     total_test_episodes = args.episodes
 
@@ -87,7 +98,7 @@ def test_agent(args):
         start = time.time()
 
         for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
-            action = agent.get_action(obs, explore=False)
+            action = agent.select_action(obs)
             action = np.expand_dims(action, axis=0)
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
@@ -128,9 +139,9 @@ def test_agent(args):
     # Save summary
     out_dir = os.path.join(DEFAULT_OUTPUT_FOLDER, "test_summary")
     os.makedirs(out_dir, exist_ok=True)
-    summary_path = os.path.join(out_dir, "test_results_td3.txt")
+    summary_path = os.path.join(out_dir, "test_results_ppo.txt")
     with open(summary_path, "w") as f:
-        f.write("TD3 FlyThruGateAvitary Test Results\n")
+        f.write("PPO FlyThruGateAvitary Test Results\n")
         f.write(f"Checkpoint: {checkpoint_path}\n")
         f.write(f"Episodes: {total_test_episodes}\n")
         f.write(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}\n")
@@ -149,7 +160,7 @@ def test_agent(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
+    parser = argparse.ArgumentParser(description='Test PPO agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
                        default='sac_drone_20241201_120000/sac_model_final.pt',
                        help='Path to the trained model checkpoint')

@@ -1,115 +1,132 @@
+#!/usr/bin/env python3
+
+import os
+import time
 import numpy as np
 import torch
+from datetime import datetime
 import argparse
 
 from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
-from TD3.td3_agent import TD3Agent, Actor, Critic
-from gym_pybullet_drones.utils.enums import ObservationType, ActionType
-import os
-from datetime import datetime
-import time
+from SAC.sac_agent import QNetwork,GaussianPolicy, ReplayBuffer, SACAgent
+
+from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.utils.utils import sync
+from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
 
+# Import SAC Agent từ file training
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Normal
 
-def test_agent(args):
-    """
-    Test TD3 agent trong môi trường FlyThruGateAvitary.
-    
-    Args:
-        env: enviroment  (FlyThruGateAvitary)
-        agent: TD3Agent trained
-        episodes: episode test
-        max_steps: max step per episode
-        render: whether to render GUI (pybullet GUI/on-screen info)
-    """
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def test(args):
+    print("=" * 60)
+    print("SAC Drone Gate Navigation - Testing")
+    print("=" * 60)
+
+    ################## Configuration ##################
     DEFAULT_GUI = True
-    DEFAULT_RECORD_VIDEO = False
-    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_td3'
-    if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
-        os.makedirs(DEFAULT_OUTPUT_FOLDER)
-    DEFAULT_COLAB = False
+    DEFAULT_RECORD_VIDEO = args.record
+    DEFAULT_OBS = ObservationType('kin')
+    DEFAULT_ACT = ActionType('rpm')
+    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_sac'
 
-    DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
-    DEFAULT_ACT = ActionType('rpm') 
-    # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'recording_'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
-    
+    total_test_episodes = args.episodes
+    hidden_dim = 256
+    #####################################################
+
+    # Initialize environment
     print("\nInitializing environment...")
-    env = FlyThruGateAvitary(gui=DEFAULT_GUI,
-                           obs=DEFAULT_OBS,
-                           act=DEFAULT_ACT,
-                           record=DEFAULT_RECORD_VIDEO)
+    env = FlyThruGateAvitary(
+        drone_model=DroneModel.CF2X,
+        initial_xyzs=np.array([[0, 0, 0.5]]),
+        physics=Physics.PYB,
+        pyb_freq=240,
+        ctrl_freq=30,
+        gui=DEFAULT_GUI,
+        record=DEFAULT_RECORD_VIDEO,
+        obs=DEFAULT_OBS,
+        act=DEFAULT_ACT
+    )
 
-    obs, info = env.reset()
-    state_dim = obs.shape[1]
-    action_dim = env.action_space.shape[1]
+    # Get state and action dimensions
+    obs, _ = env.reset()
+    state_dim = obs.shape[1]                # số chiều state
+    action_dim = env.action_space.shape[1]  # số chiều action
 
     print(f"State dimension: {state_dim}")
     print(f"Action dimension: {action_dim}")
 
-    print("\nInitializing agent...")
-    agent = TD3Agent(
-        Actor, Critic,
-        state_size=state_dim,
-        action_size=action_dim,
+    # Initialize SAC agent
+    print("\nInitializing SAC agent...")
+    sac_agent = SACAgent(
+        state_dim=state_dim,
+        action_dim=action_dim,
+        hidden_dim=hidden_dim
     )
 
-    print("Agent initialized.")
-    print("=" * 60)
-
-    
     # Load pretrained model
     checkpoint_path = args.model_path
     if not os.path.exists(checkpoint_path):
         print(f"Error: Model file not found at {checkpoint_path}")
         return
-    
+
     print(f"Loading network from: {checkpoint_path}")
-    agent.load(checkpoint_path)
+    sac_agent.load(checkpoint_path)
     print("=" * 60)
 
-    agent.eval_mode()
-
-    total_test_episodes = args.episodes
-
-    print(f"\nStarting test for {total_test_episodes} episodes...")
-    print("=" * 60)
-
+    # Testing loop
     test_rewards = []
     test_lengths = []
     success_count = 0
     success_times = []
 
-    for ep in range(total_test_episodes):
-        obs, info = env.reset(seed=42 + ep, options={})
+    print(f"\nStarting test for {total_test_episodes} episodes...")
+    print("=" * 60)
+
+    for episode in range(total_test_episodes):
+        obs, info = env.reset(seed=42 + episode, options={})
         ep_reward = 0
-        ep_len = 0
+        ep_length = 0
         start = time.time()
 
-        for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
-            action = agent.get_action(obs, explore=False)
-            action = np.expand_dims(action, axis=0)
+        # Run episode
+        max_steps = (env.EPISODE_LEN_SEC + 30) * env.CTRL_FREQ
+        for i in range(max_steps):
+            # Select action (deterministic for testing)
+            action = sac_agent.select_action(obs, evaluate=True)
+
+            # Execute action
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
-            ep_len += 1
-            env.render()
-            sync(i, start, env.CTRL_TIMESTEP)
+            ep_length += 1
+
+            # Render if GUI is enabled
+            if DEFAULT_GUI:
+                env.render()
+                sync(i, start, env.CTRL_TIMESTEP)
+
+            # Check if episode is done
             if terminated or truncated:
+                # Check if drone passed the gate (reward > 5 means successful)
                 if ep_reward > 10:
                     success_count += 1
-                    success_times.append(ep_len / env.CTRL_FREQ)
+                    success_times.append(ep_length / env.CTRL_FREQ) 
+                    print(f"Episode {episode + 1} succeeded in {ep_length/env.CTRL_FREQ:.2f} seconds.")
                 break
+
+        # Store episode statistics
         test_rewards.append(ep_reward)
-        test_lengths.append(ep_len)
-        print(f"Episode {ep+1}/10 | Reward {ep_reward:.2f} | Len {ep_len} | Success {'✓' if ep_reward>5 else '✗'}")
+        test_lengths.append(ep_length)
 
-    print(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}")
-    print(f"Success rate: {success_count}/10 ({100*success_count/10:.1f}%)")
-    if success_times:
-        print(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
-        print(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s")
+        # Print episode results
+        print(f'Episode {episode + 1}/{total_test_episodes} | '
+              f'Reward: {ep_reward:7.2f} | '
+              f'Length: {ep_length:4d} | '
+              f'Success: {"✓" if ep_reward > 5 else "✗"}')
 
-    print("========== TESTING COMPLETED ==========")
     env.close()
 
     # Print summary statistics
@@ -128,9 +145,9 @@ def test_agent(args):
     # Save summary
     out_dir = os.path.join(DEFAULT_OUTPUT_FOLDER, "test_summary")
     os.makedirs(out_dir, exist_ok=True)
-    summary_path = os.path.join(out_dir, "test_results_td3.txt")
+    summary_path = os.path.join(out_dir, "test_results_sac.txt")
     with open(summary_path, "w") as f:
-        f.write("TD3 FlyThruGateAvitary Test Results\n")
+        f.write("SAC FlyThruGateAvitary Test Results\n")
         f.write(f"Checkpoint: {checkpoint_path}\n")
         f.write(f"Episodes: {total_test_episodes}\n")
         f.write(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}\n")
@@ -148,8 +165,13 @@ def test_agent(args):
             f.write("\nSuccess times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
 
 
+
+# ============================================================================
+# Main
+# ============================================================================
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
+    parser = argparse.ArgumentParser(description='Test SAC agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
                        default='sac_drone_20241201_120000/sac_model_final.pt',
                        help='Path to the trained model checkpoint')
@@ -169,4 +191,4 @@ if __name__ == '__main__':
     print(f"  GUI: {args.gui}")
     print()
 
-    test_agent(args)
+    test(args)
