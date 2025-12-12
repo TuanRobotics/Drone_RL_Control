@@ -5,7 +5,7 @@ import argparse
 import gymnasium as gym
 import numpy as np
 import torch
-from PPO.ppo_agent import PPO
+from agents.ppo_agent import PPO
 
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.envs.HoverAviary import HoverAviary
