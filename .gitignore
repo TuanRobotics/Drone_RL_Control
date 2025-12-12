@@ -9,7 +9,6 @@ docs/
 logs/
 
 # NumPy saves and videos
-results/
 tmp/
 
 # Learning results
