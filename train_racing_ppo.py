@@ -9,10 +9,12 @@ from PPO.ppo_agent import PPO
 
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.envs.HoverAviary import HoverAviary
-from gym_pybullet_drones.envs.DroneRacingAvitary import DroneRacingAviary
+from gym_pybullet_drones.envs.DroneRacingAviary import DroneRacingAviary
 from gym_pybullet_drones.envs.MultiHoverAviary import MultiHoverAviary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
+
+
 # init environment
 def train():
     DEFAULT_GUI = True
@@ -22,6 +24,7 @@ def train():
 
     DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
     DEFAULT_ACT = ActionType('rpm') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
+
 
     env = DroneRacingAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT)
     # init agent
@@ -34,17 +37,19 @@ def train():
     #####################################################
 
     ################ PPO hyperparameters ################
-    max_training_timesteps = int(5e6)   # break training loop if timeteps > max_training_timesteps
+    #update_timestep = max_ep_len * 4      # update policy every n timesteps
+    max_training_timesteps = int(3e6)   # break training loop if timeteps > max_training_timesteps
     K_epochs = 80               # update policy for K epochs in one PPO update
 
     eps_clip = 0.2          # clip parameter for PPO
     gamma = 0.99            # discount factor
-    lr_actor = 3e-4       # learning rate for actor network
-    lr_critic = 1e-3       # learning rate for critic network
+    lr_actor = 0.0003       # learning rate for actor network
+    lr_critic = 0.001       # learning rate for critic network
 
     random_seed = 0         # set random seed if required (0 = no random seed)
     log_dir = "log_dir/"
-    run_num = "racing_ppo/"
+    run_num = "racing_ppo_2/"
+    
     log_f_name = log_dir + run_num + 'PPO_log' + ".csv"
     if not os.path.exists(os.path.join(log_dir, str(run_num))):
         os.mkdir(os.path.join(log_dir, str(run_num)))
@@ -151,6 +156,8 @@ def train():
 
     log_f.close()
     env.close()
+
+
 
     # print total training time
     print("============================================================================================")

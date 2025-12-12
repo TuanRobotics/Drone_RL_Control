@@ -2,160 +2,171 @@ import os
 import numpy as np
 import pybullet as p
 import pkg_resources
-from gym_pybullet_drones.envs.BaseRacingRLAviary import BaseRacingRLAviary         
-from gym_pybullet_drones.utils.enums import DroneModel, ObservationType, ActionType, Physics
+
+from gym_pybullet_drones.envs.BaseRacingRLAviary import BaseRacingRLAviary
+from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
+
 
 class DroneRacingAviary(BaseRacingRLAviary):
-    """Drone Racing environment class for multiple drones racing through gates in a PyBullet simulation.
+    """Single agent RL problem: fly through a gate."""
 
-    The environment is initialized with a specified number of drones, observation type, action type, and physics engine.
-    The drones are rewarded based on their progress towards the next gate and receive a bonus for passing through gates.
-    The episode terminates upon collision or timeout.
-
-    Attributes:
-        NUM_DRONES (int): Number of drones in the environment.
-        OBS_TYPE (ObservationType): Type of observation (kinematic or RGB).
-        ACT_TYPE (ActionType): Type of action (RPM, PID, etc.).
-        PHYSICS (Physics): Physics engine used for simulation.
-    """
+    ################################################################################
 
     def __init__(self,
-                 drone_model: DroneModel = DroneModel.CF2X,
+                 drone_model: DroneModel=DroneModel.CF2X,
                  initial_xyzs=None,
                  initial_rpys=None,
-                 physics: Physics = Physics.PYB,
-                 pyb_freq: int = 240,
-                 ctrl_freq: int = 48,
+                 physics: Physics=Physics.PYB,
+                 pyb_freq: int=240,
+                 ctrl_freq: int=30,
                  gui=False,
-                 record= False,
-                 obs: ObservationType = ObservationType.KIN,
-                 act: ActionType = ActionType.RPM):
-        
+                 record=False,
+                 obs: ObservationType=ObservationType.KIN,
+                 act: ActionType=ActionType.RPM
+                 ):
+        """Initialization of a single agent RL environment.
 
-        self.EPISODE_LEN_SEC = 10  # Episode length in seconds
-        self.collided = False
-        
-        super().__init__(
-            drone_model=drone_model,
-            num_drones=1,
-            initial_xyzs=initial_xyzs,
-            initial_rpys=initial_rpys,
-            physics=physics,
-            pyb_freq=pyb_freq,
-            ctrl_freq=ctrl_freq,
-            gui=gui,
-            record=record,
-            obs=obs,
-            act=act
-        )
+        Using the generic single agent RL superclass.
+
+        Parameters
+        ----------
+        drone_model : DroneModel, optional
+            The desired drone type (detailed in an .urdf file in folder `assets`).
+        initial_xyzs: ndarray | None, optional
+            (NUM_DRONES, 3)-shaped array containing the initial XYZ position of the drones.
+        initial_rpys: ndarray | None, optional
+            (NUM_DRONES, 3)-shaped array containing the initial orientations of the drones (in radians).
+        physics : Physics, optional
+            The desired implementation of PyBullet physics/custom dynamics.
+        freq : int, optional
+            The frequency (Hz) at which the physics engine steps.
+        aggregate_phy_steps : int, optional
+            The number of physics steps within one call to `BaseAviary.step()`.
+        gui : bool, optional
+            Whether to use PyBullet's GUI.
+        record : bool, optional
+            Whether to save a video of the simulation in folder `files/videos/`.
+        obs : ObservationType, optional
+            The type of observation space (kinematic information or vision)
+        act : ActionType, optional
+            The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
+
+        """
+        self.EPISODE_LEN_SEC = 10
+        super().__init__(drone_model=drone_model,
+                         num_drones = 1,
+                         initial_xyzs=initial_xyzs,
+                         initial_rpys=initial_rpys,
+                         physics=physics,
+                         pyb_freq=pyb_freq,
+                         ctrl_freq=ctrl_freq,
+                         gui=gui,
+                         record=record,
+                         obs=obs,
+                         act=act
+                         )
+        self.collide = False
+
+
+    ################################################################################
 
     def _addObstacles(self):
-        super()._addObstacles()
-        # Add gates based on the racing setup
-        # racing_setup = self.set_circular_racing_setup(num_gates=5, radius=5.0, center_xy=(0.0, 0.0))
-        # self.racing_setup = racing_setup
-        # self.passing_flag = [False for _ in range(len(racing_setup))]
-        # self.prev_pos = np.array([0.0, 0.0, 0.0])
+        """Add obstacles to the environment.
 
+        Extends the superclass method and add the gate build of cubes and an architrave.
+
+        """
+        super()._addObstacles()
         g1 = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
                    [0, 1, 0],
                    p.getQuaternionFromEuler([0, 0, np.pi/2]),
                    physicsClientId=self.CLIENT
                    )
         g2 = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [1, 3, 0],
+                   [0.5, 3, 0],
                    p.getQuaternionFromEuler([0, 0, np.pi/2]),
                    physicsClientId=self.CLIENT
                    )
         g3 = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [2, 4.5, 0],
+                   [-0.5, 5, 0],
                    p.getQuaternionFromEuler([0, 0, np.pi/2]),
                    physicsClientId=self.CLIENT
                    )
         g4 = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [3, 5.5, 0],
-                   p.getQuaternionFromEuler([0, 0, np.pi/2]),
-                   physicsClientId=self.CLIENT
-                   )
-        g5 = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [5, 7, 0],
+                   [-0.5, 6, 0],
                    p.getQuaternionFromEuler([0, 0, np.pi/2]),
                    physicsClientId=self.CLIENT
                    )
 
-        self.GATE_IDs = np.array([g1, g2, g3, g4, g5])
-      
+        self.GATE_IDs = np.array([g1, g2, g3, g4])
+
     def _computeReward(self):
+        """Computes the current reward value.
 
+        Returns
+        -------
+        float
+            The reward.
+
+        """
         state = self._getDroneStateVector(0)
-        pos = state[0:3]
         rpy = state[7:10]
         ang_vel=state[13:16]
-
-        found_gate = False # Check if found gate to compute progress
         for i, key in enumerate(self.racing_setup.keys()):
             if self.passing_flag[i]:
                 continue
-            cur_dist = np.linalg.norm(np.array(self.racing_setup[key][0]) - pos)
+            cur_dist = np.linalg.norm(np.array(self.racing_setup[key][0]) - state[:3])
             prev_dist = np.linalg.norm(np.array(self.racing_setup[key][0]) - self.prev_pos)
-            found_gate = True
             break
-        if not found_gate:
-            # all gates passed
-            return 0.0, True
-        
         self.prev_pos = state[:3]
         on_way_reward = prev_dist - cur_dist - 0.001 * np.linalg.norm(ang_vel)
-        passing = False 
-
+        passing = False
         for i, key in enumerate(self.racing_setup.keys()):
             if self.passing_flag[i]:
                 continue
-            # Check x y z within gate bounds 
-            """
-            x_left = self.racing_setup[key][1][0]
-            x_right = self.racing_setup[key][2][0]
-            y_bottom = self.racing_setup[key][1][1] - 0.5
-            y_top = self.racing_setup[key][2][1] + 0.5
-            z_lower = self.racing_setup[key][4][2]
-            z_upper = self.racing_setup[key][1][2]
-            if x_left < pos[0] < x_right and y_bottom < pos[1] < y_top and z_lower < pos[2] < z_upper:
-            """
-            if self.racing_setup[key][1][0] < pos[0] < self.racing_setup[key][2][0] and \
-               self.racing_setup[key][1][1] - 0.5 < pos[1] < self.racing_setup[key][2][1] + 0.5 and \
-               self.racing_setup[key][4][2] < pos[2] < self.racing_setup[key][1][2]:
-                self.passing_flag[i] = True
+            if self.racing_setup[key][1][0] < state[0] < self.racing_setup[key][2][0] and \
+                self.racing_setup[key][1][1] < state[1] < self.racing_setup[key][1][1] + 2*self.offset and \
+                self.offset < state[2] < self.offset + self.h:
                 passing = True
+                self.passing_flag[i] = True
                 break
-
-        self.collided  = False
+        self.collide = False
         for i in range(4):
             contact_points = p.getContactPoints(bodyA=self.DRONE_IDS[0],
                        bodyB=self.GATE_IDs[i],
                        physicsClientId=self.CLIENT
                        )
             if len(contact_points) != 0:
-                self.collided = True
+                self.collide = True
                 break
         if passing:
             print("passing")
             print(state[:3])
             print(self.passing_flag)
             reward = 10
-        elif self.collided:
-            print("collision")
+        elif self.collide:
+            print("collide")
+            print(state[:3])
             reward = -10
         else:
             reward = on_way_reward
-        
-        return reward 
 
+        return reward
 
+    ################################################################################
     def _computeTruncated(self):
+        """Computes the current truncated value.
 
+        Returns
+        -------
+        bool
+            Whether the current episode timed out.
+
+        """
         state = self._getDroneStateVector(0)
         if (abs(state[0]) > self.w/2 + 0.5 + 2*self.offset or state[1] > 6 or state[1] < -2 * self.offset \
-                    or state[3] > self.h + 2 * self.offset):
+        or state[3] > self.h + 2 * self.offset# Truncate when the drone is too far away
+        ):
             if self.passing_flag[0]:
                 print('trucated')
                 print(state[:3])
@@ -169,25 +180,49 @@ class DroneRacingAviary(BaseRacingRLAviary):
             return True
         else:
             return False
-    
-    def _computeTerminated(self):
 
-        if  self.passing_flag[4] == True or self.collided == True:
+    def _computeTerminated(self):
+        """Computes the current done value.
+
+        Returns
+        -------
+        bool
+            Whether the current episode is done.
+
+        """
+        # just require to pass 3rd gate
+        if  self.passing_flag[2] == True or self.collide == True:
             return True
         else:
             return False
-        
+
+    ################################################################################
+
     def _computeInfo(self):
-        info = {}
-        info['passing_flag'] = self.passing_flag
-        return info
-    
-    def _clipAndNormalizeState(self,state):
+        """Computes the current info dict(s).
+
+        Unused.
+
+        Returns
+        -------
+        dict[str, int]
+            Dummy value.
+
+        """
+        return {"answer": 42} #### Calculated by the Deep Thought supercomputer in 7.5M years
+
+    ################################################################################
+
+    def _clipAndNormalizeState(self,
+                               state
+                               ):
         """Normalizes a drone's state to the [-1,1] range.
+
         Parameters
         ----------
         state : ndarray
             (20,)-shaped array of floats containing the non-normalized state of a single drone.
+
         Returns
         -------
         ndarray
@@ -263,7 +298,3 @@ class DroneRacingAviary(BaseRacingRLAviary):
             print("[WARNING] it", self.step_counter, "in FlyThruGateAviary._clipAndNormalizeState(), clipped xy velocity [{:.2f} {:.2f}]".format(state[10], state[11]))
         if not(clipped_vel_z == np.array(state[12])).all():
             print("[WARNING] it", self.step_counter, "in FlyThruGateAviary._clipAndNormalizeState(), clipped z velocity [{:.2f}]".format(state[12]))
-
-        
-    
-   

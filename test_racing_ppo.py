@@ -10,7 +10,7 @@ from PPO.ppo_agent import PPO
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.envs.HoverAviary import HoverAviary
 from gym_pybullet_drones.envs.MultiHoverAviary import MultiHoverAviary
-from gym_pybullet_drones.envs.DroneRacingAvitary import DroneRacingAviary
+from gym_pybullet_drones.envs.DroneRacingAviary import DroneRacingAviary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
@@ -87,7 +87,7 @@ def test():
 
     #checkpoint_path = "log_dir/5/3577_ppo_drone.pth"
     #checkpoint_path = "log_dir/6/4436_ppo_drone.pth"
-    checkpoint_path = "log_dir/racing_ppo/35851_ppo_drone.pth"
+    checkpoint_path = "/home/tuan/Desktop/drone_rl_control/log_dir/racing_ppo_2/182806_ppo_drone.pth"
     print("loading network from : " + checkpoint_path)
 
     ppo_agent.load(checkpoint_path)

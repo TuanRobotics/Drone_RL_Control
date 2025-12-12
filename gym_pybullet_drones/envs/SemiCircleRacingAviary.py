@@ -34,7 +34,7 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
         self._num_gates = 7
         self._gate_span = np.pi  # Half circle (180 degrees)
         self._gate_half_depth = 0.6 # Half depth of each gate along the track direction
-        self.success_buffer = deque(maxlen=500)  # store successful pass poses
+        self.success_buffer = deque(maxlen=10000)  # store successful pass poses
 
         super().__init__(drone_model=drone_model,
                          num_drones=1,
@@ -133,6 +133,19 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
             self.INIT_RPYS[0, :] = np.array([0.0, 0.0, yaw])
             self.prev_pos = xyz
             self._preset_passing_flags = passed_flags
+        elif spawn_mode == "default":
+            # Place just before gate 0, facing gate 0
+            gate_center = np.array(self.racing_setup[0][0])
+            gate_yaw = self.gate_yaws[0]
+            back_offset = float(options.get("back_offset", 1.0))
+            tangent = np.array([np.cos(gate_yaw), np.sin(gate_yaw)])
+            pos_xy = gate_center[:2] - back_offset * tangent
+            pos_z = gate_center[2]
+            xyz = np.array([pos_xy[0], pos_xy[1], pos_z])
+            self.INIT_XYZS[0, :] = xyz
+            self.INIT_RPYS[0, :] = np.array([0.0, 0.0, gate_yaw])
+            self.prev_pos = xyz
+            self._preset_passing_flags = [False for _ in range(self._num_gates)]
         return super().reset(seed=seed, options=options)
 
     def _computeObs(self):
@@ -145,38 +158,66 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
         state = self._getDroneStateVector(0)
         pos = state[0:3]
         ang_vel = state[13:16]
+
+        # Xác định gate hiện tại & gate trước
         next_gate = None
         for i in sorted(self.racing_setup.keys()):
             if not self.passing_flag[i]:
                 next_gate = i
                 break
         if next_gate is None:
-            return 0.0
+            return 0.0  # đã hoàn thành
 
-        cur_dist = np.linalg.norm(np.array(self.racing_setup[next_gate][0]) - pos)
-        prev_dist = np.linalg.norm(np.array(self.racing_setup[next_gate][0]) - self.prev_pos)
-        self.prev_pos = pos.copy()
+        prev_gate = max(next_gate - 1, 0)  # tùy bạn định nghĩa lap/start
 
-        progress_reward = prev_dist - cur_dist - 0.001 * np.linalg.norm(ang_vel)
+        g1 = np.array(self.racing_setup[prev_gate][0])   # center gate trước
+        g2 = np.array(self.racing_setup[next_gate][0])   # center gate sau
+        seg = g2 - g1
+        seg_len = np.linalg.norm(seg) + 1e-6
+
+        # project vị trí hiện tại & trước đó lên segment
+        def s_on_segment(p):
+            return np.dot(p - g1, seg) / seg_len
+
+        s_cur = s_on_segment(pos)
+        s_prev = s_on_segment(self.prev_pos)
+
+        path_progress = s_cur - s_prev     # giống rp(t) trong paper
+
+        # nhỏ thôi, giống -b ||ω||^2
+        rate_penalty = 0.001 * np.linalg.norm(ang_vel) ** 2
+
+        # (optional) safety reward như paper – có thể thêm sau
+        safety_reward = 0.0  # TODO: tính theo khoảng cách tới mặt phẳng gate nếu muốn
+
+        # Check pass gate / collision
         passing = False
-        if self._is_inside_gate(pos, next_gate):
+        if self._crossed_gate(self.prev_pos, pos, next_gate):
             self.passing_flag[next_gate] = True
             passing = True
 
-        self.collided = False
-        for gate_id in self.GATE_IDs:
-            if len(p.getContactPoints(bodyA=self.DRONE_IDS[0], bodyB=gate_id, physicsClientId=self.CLIENT)) != 0:
-                self.collided = True
-                break
+        self.collided = any(
+            len(p.getContactPoints(bodyA=self.DRONE_IDS[0],
+                                bodyB=gate_id,
+                                physicsClientId=self.CLIENT)) != 0
+            for gate_id in self.GATE_IDs
+        )
 
-        if passing:
-            reward = 10.0
-        elif self.collided:
-            reward = -10.0
+        # Terminal penalty khi crash (kiểu r_T)
+        if self.collided:
+            gate_center = g2
+            dg = np.linalg.norm(pos - gate_center)
+            wg = self.w  # hoặc kích thước thực của gate
+            crash_penalty = -min((dg / wg) ** 2, 20.0)
+            reward = crash_penalty
         else:
-            reward = progress_reward
-        if passing:
+            reward = path_progress + safety_reward - rate_penalty
+
+        # (tuỳ) nếu muốn vẫn giữ success_buffer
+        if passing and not self.collided:
             self.success_buffer.append((pos.copy(), self.gate_yaws[next_gate], next_gate))
+
+        self.prev_pos = pos.copy()
         return reward
 
     def _is_inside_gate(self, position, gate_idx):
@@ -198,12 +239,45 @@ class SemiCircleRacingAviary(BaseRacingRLAviary):
             -half_h < local[2] < half_h
         )
 
+    def _crossed_gate(self, prev_position, cur_position, gate_idx):
+        """Detect whether the drone actually flew through the gate volume (back -> front)."""
+        center = np.array(self.racing_setup[gate_idx][0])
+        yaw = self.gate_yaws[gate_idx]
+        rel_prev = prev_position - center
+        rel_cur = cur_position - center
+        rot = np.array([
+            [np.cos(-yaw), -np.sin(-yaw), 0.0],
+            [np.sin(-yaw), np.cos(-yaw), 0.0],
+            [0.0, 0.0, 1.0],
+        ])
+        local_prev = rot.dot(rel_prev)
+        local_cur = rot.dot(rel_cur)
+
+        half_w = self.w / 2
+        half_h = self.h / 2
+        half_d = self._gate_half_depth
+        tol = 0.02  # tighter margin to avoid false positives
+
+        within_prev = (
+            -half_w - tol < local_prev[0] < half_w + tol and
+            -half_h - tol < local_prev[2] < half_h + tol
+        )
+        within_cur = (
+            -half_w - tol < local_cur[0] < half_w + tol and
+            -half_h - tol < local_cur[2] < half_h + tol
+        )
+
+        # Require a full traverse through the gate depth, not just touching the plane.
+        crossed_plane = (local_prev[1] < -half_d) and (local_cur[1] > half_d)
+        forward_delta = (local_cur[1] - local_prev[1]) > 0.1  # ensure forward motion
+        return within_prev and within_cur and crossed_plane and forward_delta
+
     def _computeTruncated(self):
         state = self._getDroneStateVector(0)
         pos = state[0:3]
         if np.linalg.norm(pos[0:2] - self._center_xy) > self._radius + 3:
             return True
-        if pos[2] < 0.0 or pos[2] > self.h + 2 * self.offset:
+        if pos[2] < 0.2 or pos[2] > self.h + 2 * self.offset:
             return True
         if abs(state[7]) > 0.8 or abs(state[8]) > 0.8:
             return True

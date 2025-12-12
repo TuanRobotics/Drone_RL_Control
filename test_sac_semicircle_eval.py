@@ -18,20 +18,19 @@ from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
 def load_agent(model_path: str, env_sample) -> SACAgent:
     state_dim = env_sample.observation_space.shape[0]
-    action_dim = env_sample.action_space.shape[0]
-    agent = SACAgent(state_dim=state_dim, action_dim=action_dim, hidden_dim=128,
+    action_dim = int(np.prod(env_sample.action_space.shape))  # env uses (1,4) Box for 1 drone
+    agent = SACAgent(state_dim=state_dim, action_dim=action_dim, hidden_dim=256,
                     lr=3e-4, gamma=0.99, tau=0.005)
     agent.load(model_path)
     return agent
-
 
 def run_eval(
     model_path: str,
     episodes: int = 5,
     gui: bool = False,
     record: bool = False,
-    spawn_mode: str = "random_track",
-    sleep: float = 0.02,
+    spawn_mode: str = "default",
+    sleep: float = 0.05,
     explore: bool = False,
     random_actions: bool = False,
 ):
@@ -70,13 +69,13 @@ def run_eval(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, default="results_sac_semicircle/sac_semicircle.pt", help="Path to saved model")
+    parser.add_argument("--model", type=str, default="log_dir/results_sac_semicircle_training/step02/sac_semicircle.pt", help="Path to saved model")
     parser.add_argument("--episodes", type=int, default=5, help="Number of eval episodes")
     parser.add_argument("--gui", action="store_true", help="Enable PyBullet GUI (default: on)")
     parser.add_argument("--no-gui", action="store_true", help="Disable GUI")
     parser.add_argument("--record", action="store_true", help="Enable video recording (GUI can be False for offscreen)")
-    parser.add_argument("--spawn", type=str, default="random_track", choices=["random_track", "success_replay", "default"], help="Spawn strategy for eval")
-    parser.add_argument("--sleep", type=float, default=0.02, help="Seconds to sleep each step for visualization (set 0 to run fast)")
+    parser.add_argument("--spawn", type=str, default="default", choices=["default", "random_track", "success_replay"], help="Spawn strategy for eval (default starts at gate 1)")
+    parser.add_argument("--sleep", type=float, default=0.05, help="Seconds to sleep each step for visualization (set 0 to run fast)")
     parser.add_argument("--explore", action="store_true", help="Use stochastic actions (sample) instead of deterministic mean")
     parser.add_argument("--random-actions", action="store_true", help="Ignore policy and use random actions (sanity check env)")
     args = parser.parse_args()

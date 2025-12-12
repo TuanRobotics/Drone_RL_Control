@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 import numpy as np
-from gym_pybullet_drones.envs.DroneRacingAvitary import DroneRacingAviary
+from gym_pybullet_drones.envs.DroneRacingAviary import DroneRacingAviary
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
 from gym_pybullet_drones.utils.utils import sync
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_path",
         type=str,
-        default="log_dir/sac_racing_parallel_20251204_013900/sac_model.pt",
+        default="/home/tuan/Desktop/drone_rl_control/log_dir/results_racing_sac_single/sac_semicircle_final.pt",
         help="Path to trained SAC checkpoint",
     )
     parser.add_argument("--episodes", type=int, default=10, help="Number of test rollouts")

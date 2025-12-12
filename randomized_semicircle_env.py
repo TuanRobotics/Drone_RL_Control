@@ -68,9 +68,9 @@ class RandomizedSemiCircleAviary(SemiCircleRacingAviary):
         # Motor thrust/torque coefficients inside env
         self.KF *= kf_scale
         self.KM *= km_scale
-        # Drag
-        self.DRAG_COEFF_XY *= drag_scale
-        self.DRAG_COEFF_Z *= drag_scale
+        # Drag (array [xy, xy, z])
+        if hasattr(self, "DRAG_COEFF"):
+            self.DRAG_COEFF = self.DRAG_COEFF * drag_scale
         # Wind force applied as external force at base
         p.applyExternalForce(drone_id, -1, forceObj=wind.tolist(),
                              posObj=[0, 0, 0], flags=p.WORLD_FRAME,
