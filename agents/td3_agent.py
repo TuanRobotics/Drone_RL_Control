@@ -122,7 +122,7 @@ class TD3Agent:
                  action_size,
                  clip_low=-1,
                  clip_high=1,
-                 hidden_dim=256,
+                 hidden_dim=64,
                  lr_actor=3e-4,
                  lr_critic=3e-4,
                  gamma=0.99,
@@ -226,7 +226,7 @@ class TD3Agent:
         Update actor and critic networks (one training step)
         """
         if len(self.memory) < self.batch_size:
-            return
+            return None, None
         
         self.total_it += 1
         
@@ -267,9 +267,11 @@ class TD3Agent:
         self.critic_optimizer.step()
         
         # ========== Delayed Policy Update ==========
+        actor_loss_value = None
         if self.total_it % self.policy_freq == 0:
             # Compute actor loss
             actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+            actor_loss_value = actor_loss.item()
             
             # Optimize actor
             self.actor_optimizer.zero_grad()
@@ -279,6 +281,8 @@ class TD3Agent:
             # Soft update target networks
             self.soft_update(self.actor, self.actor_target)
             self.soft_update(self.critic, self.critic_target)
+        
+        return critic_loss.item(), actor_loss_value
     
     def soft_update(self, source, target):
         """Soft update model parameters"""

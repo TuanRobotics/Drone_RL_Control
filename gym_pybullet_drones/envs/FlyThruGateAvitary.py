@@ -64,45 +64,60 @@ class FlyThruGateAvitary(BaseRLAviary):
             act=act
         )
 
-        self.GATE_POS = np.array([0, -2, 0.75])  # Center of gate
-        self.FINAL_TARGET = np.array([0, -2, 0.75])
+        self.GATE_POS = np.array([0, -1, 0.75])  # Center of gate
+        self.FINAL_TARGET = np.array([0, -2, 0.5])
         self.passed_gate = False  # Flag for track if gate is passed
-    
+        self.GATE_ORN = None
+
     ##############################################################################
     # Load urdf to create the gate 
     def _addObstacles(self):
 
         super()._addObstacles()
-        p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [0, -1, 0],
-                   p.getQuaternionFromEuler([0, 0, 1.5]),
+        boxId = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
+                   [0, -1, 0.3],
+                   p.getQuaternionFromEuler([0, 0, 1.57]),
                    physicsClientId=self.CLIENT
                    )
+        self.GATE_POS, self.GATE_ORN = p.getBasePositionAndOrientation(boxId)
+    ##############################################################################
     # def _computeReward(self):
         # """Reward for gate navigation task"""
         # state = self._getDroneStateVector(0)
         # norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
         # return max (0, 1 - np.linalg.norm(np.array([0, -3*norm_ep_time, 0.75])-state[0:3]))
     def _computeReward(self):
+
         """Reward for gate navigation task"""
         state = self._getDroneStateVector(0)
         pos = state[0:3]
         vel = state[10:13]  # [vx, vy, vz]
         
         # Position of gate and its normal vector
-        gate_pos = self.GATE_POS
+        gate_pos = self.GATE_POS  # x, y, z của gate 
+        # print("Gate position:", gate_pos)
         gate_normal = np.array([0.0, -1.0, 0.0])  # Direction 
         
         # 1. Distance reward
+        way_point = gate_pos + np.array([0.0, -1.0, 0.25])  # Waypoint at the center of the gate
+        # print(f"Way point:", way_point)
         distance = np.linalg.norm(pos - gate_pos)
         distance_reward = np.exp(-2.0 * distance)  # Exponential decay
         
         # 2. Progress reward - reward for moving towards the gate : reward shaping
         progress = np.dot(vel, gate_normal)  # Velocity component 
-        progress_reward = max(0, progress) 
+        progress_reward = max(0, progress)  
+        
+        #3. Alignment reward - reward for going straight through the gate
+        vel_norm = np.linalg.norm(vel)
+        if vel_norm > 0.1:
+            alignment = np.dot(vel / vel_norm, gate_normal)
+            alignment_reward = max(0, alignment)
+        else:
+            alignment_reward = 0
         
         # 4. Gate passing bonus - reward for passing through the gate
-        passed_gate = (pos[1] < gate_pos[1]) and (distance < 0.2)  # Passed y of gate and close to gate
+        passed_gate = (pos[1] < gate_pos[1]) and (distance < 0.25)  # Passed y of gate and close to gate
         if passed_gate:
             reward = 10.0 
             return reward
@@ -110,13 +125,14 @@ class FlyThruGateAvitary(BaseRLAviary):
         # 5. Penalty for collision or going out of bounds
         out_of_bounds = abs(pos[0]) > 2.0 or abs(pos[1]) > 1.5 or pos[2] < 0.1 or pos[2] > 2.0
         if out_of_bounds:
-            reward = -10.0
+            reward = -10.0 
             return reward
-         
+        
         # Total reward (can tune coefficients)
         reward = (
             2.0 * distance_reward +      
-            1.0 * progress_reward            
+            1.0 * progress_reward  
+            + 1.0 * alignment_reward          
         )
         return reward
     

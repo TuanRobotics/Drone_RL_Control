@@ -11,7 +11,7 @@ import random
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-from SAC.sac_agent import ReplayBuffer, SACAgent
+from agents.sac_agent import ReplayBuffer, SACAgent
 from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
 
@@ -19,14 +19,14 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, Obs
 # ============================================================================
 # Training Function
 # ============================================================================
-def train_sac(num_episodes=3000,
-              max_steps=1000,
+def train_sac(num_episodes=10000,
+              max_steps=500,
               batch_size=256,
               buffer_size=1000000,
               start_steps=10000,
               update_after=1000,
               update_every=50,
-              save_every=500,
+              save_every=100,
               eval_every=50,
               num_eval_episodes=5,
               gui=False):
@@ -46,8 +46,7 @@ def train_sac(num_episodes=3000,
     action_dim = env.action_space.shape[1]  # 4 - number of action
 
     # Create agent and replay buffer
-    agent = SACAgent(state_dim, action_dim, hidden_dim=256,
-                    lr=3e-4, gamma=0.99, tau=0.005)
+    agent = SACAgent(state_dim, action_dim)
     replay_buffer = ReplayBuffer(buffer_size)
 
     # Metrics
@@ -60,10 +59,8 @@ def train_sac(num_episodes=3000,
 
     # Create save directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    save_dir = f"log_dir/sac_thrugate_{timestamp}/"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    
+    save_dir = f"/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate/sac_{timestamp}"
+    os.makedirs(save_dir, exist_ok=True)
 
     total_steps = 0
 
@@ -76,7 +73,7 @@ def train_sac(num_episodes=3000,
         episode_reward = 0
         episode_length = 0
 
-        for step in range(max_steps):
+        for step in range(env.EPISODE_LEN_SEC * env.CTRL_FREQ):
             # Select action
             if total_steps < start_steps:
                 action = env.action_space.sample()  # Random action
@@ -112,46 +109,47 @@ def train_sac(num_episodes=3000,
 
         # Logging
         if (episode + 1) % 10 == 0:
-            avg_reward = np.mean(episode_rewards[-10:])
-            avg_length = np.mean(episode_lengths[-10:])
+            avg_reward_10 = np.mean(episode_rewards[-10:])
             print(f"Episode {episode+1}/{num_episodes} | "
                   f"Steps: {total_steps} | "
                   f"Reward: {episode_reward:.2f} | "
-                  f"Avg(10): {avg_reward:.2f} | "
+                  f"Avg(10): {avg_reward_10:.2f} | "
                   f"Length: {episode_length}")
-
+        
+        avg_reward_100 = np.mean(episode_rewards[-100:])
         # Evaluation
         if (episode + 1) % eval_every == 0:
             eval_reward = evaluate_policy(env, agent, num_eval_episodes)
             eval_rewards.append(eval_reward)
             print(f"\n{'='*60}")
             print(
-                f"Evaluation at Episode {episode+1}: Avg Reward = {eval_reward:.2f}"
+                f"Avg Reward over 100 episodes: {avg_reward_100:.2f}\n"
+                f"Evaluation at Episode {episode+1}: Avg Evaluated Reward = {eval_reward:.2f}"
             )
             print(f"{'='*60}\n")
 
         # Early stopping if solved
-        if len(episode_rewards) >= 100:
-            if np.mean(episode_rewards[-100:]) >= 200:
-                print(f"\nEnvironment solved in {episode+1} episodes!")
-                print(f"Average Reward: {np.mean(episode_rewards[-100:]):.2f}")
-                print(f"{'='*60}\n")
-                break
+        if avg_reward_100 >= 120:
+            print(f"\nEnvironment solved in {episode+1} episodes!")
+            print(f"Average Reward: {avg_reward_100:.2f}")
+            print(f"{'='*60}\n")
+            break
 
-        # Save model and plots
-        if (episode + 1) % save_every == 0:
-            agent.save(os.path.join(save_dir, f"sac_model_ep{episode+1}.pt"))
-            plot_training_curves(episode_rewards, eval_rewards, q1_losses,
-                                 q2_losses, policy_losses, save_dir, episode + 1)
+        # # Save model
+        # if (episode + 1) % save_every == 0:
+        #     # agent.save(os.path.join(save_dir, f"sac_model_ep{episode+1}.pt"))
+        #     plot_training_curves(episode_rewards, eval_rewards, q1_losses,
+        #                          policy_losses, save_dir, episode + 1)
 
     env.close()
 
-    # Final save
+    # Final save + plot
+    print(f"{'='*60}\n")
     agent.save(os.path.join(save_dir, "sac_model_final.pt"))
     plot_training_curves(episode_rewards, eval_rewards, q1_losses,
-                         q2_losses, policy_losses, save_dir, "final")
+                         policy_losses, save_dir, "final")
 
-    print(f"\nTraining completed! Models saved in {save_dir}")
+    print(f"\nTraining completed! Final model saved in {save_dir}")
 
     return agent, episode_rewards, eval_rewards
 
@@ -180,7 +178,7 @@ def evaluate_policy(env, agent, num_episodes=5):
 
 
 def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
-                         q2_losses, policy_losses, save_dir, episode):
+                         policy_losses, save_dir, episode):
     """Plot and save training curves"""
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
 
@@ -205,29 +203,22 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
         axes[0, 1].grid(True)
 
     # Q losses
-    if q1_losses or q2_losses:
-        if q1_losses:
-            axes[1, 0].plot(q1_losses, alpha=0.25, label='Q1 Loss')
-            if len(q1_losses) >= 50:
-                smoothed = np.convolve(q1_losses, np.ones(50)/50, mode='valid')
-                axes[1, 0].plot(range(len(q1_losses) - len(smoothed), len(q1_losses)), smoothed, linewidth=2, label='Q1 Smoothed')
-        if q2_losses:
-            axes[1, 0].plot(q2_losses, alpha=0.25, label='Q2 Loss')
-            if len(q2_losses) >= 50:
-                smoothed = np.convolve(q2_losses, np.ones(50)/50, mode='valid')
-                axes[1, 0].plot(range(len(q2_losses) - len(smoothed), len(q2_losses)), smoothed, linewidth=2, label='Q2 Smoothed')
+    if q1_losses:
+        axes[1, 0].plot(q1_losses, alpha=0.3)
+        if len(q1_losses) >= 100:
+            smoothed = np.convolve(q1_losses, np.ones(100)/100, mode='valid')
+            axes[1, 0].plot(range(99, len(q1_losses)), smoothed, linewidth=2)
         axes[1, 0].set_xlabel('Update Step')
-        axes[1, 0].set_ylabel('Critic Loss')
-        axes[1, 0].set_title('Critic Losses')
-        axes[1, 0].legend()
+        axes[1, 0].set_ylabel('Q1 Loss')
+        axes[1, 0].set_title('Critic Loss')
         axes[1, 0].grid(True)
 
     # Policy losses
     if policy_losses:
         axes[1, 1].plot(policy_losses, alpha=0.3)
-        if len(policy_losses) >= 50:
-            smoothed = np.convolve(policy_losses, np.ones(50)/50, mode='valid')
-            axes[1, 1].plot(range(len(policy_losses) - len(smoothed), len(policy_losses)), smoothed, linewidth=2)
+        if len(policy_losses) >= 100:
+            smoothed = np.convolve(policy_losses, np.ones(100)/100, mode='valid')
+            axes[1, 1].plot(range(99, len(policy_losses)), smoothed, linewidth=2)
         axes[1, 1].set_xlabel('Update Step')
         axes[1, 1].set_ylabel('Policy Loss')
         axes[1, 1].set_title('Actor Loss')
@@ -244,15 +235,14 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
 if __name__ == "__main__":
     # Training configuration
     agent, episode_rewards, eval_rewards = train_sac(
-        num_episodes=5000,
-        max_steps=1000,
-        batch_size=256,
+        num_episodes=10000,
+        batch_size=64,
         buffer_size=1000000,
         start_steps=10000,      # Random exploration steps
         update_after=1000,      # Start training after this many steps
         update_every=50,        # Update frequency
-        save_every=500,         # Save model every N episodes
-        eval_every=500,          # Evaluate every N episodes
+        save_every=100,         # Save model every N episodes
+        eval_every=50,          # Evaluate every N episodes
         num_eval_episodes=5,    # Number of episodes for evaluation
         gui=False               # Set True to see visualization
     )

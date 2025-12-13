@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
 import numpy as np
 import torch
+import argparse
+
 from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
-from TD3.td3 import TD3Agent, Actor, Critic
+from agents.td3_agent import TD3Agent, Actor, Critic
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 import os
 from datetime import datetime
@@ -10,7 +11,7 @@ import time
 from gym_pybullet_drones.utils.utils import sync
 
 
-def test_agent():
+def test_agent(args):
     """
     Test TD3 agent trong môi trường FlyThruGateAvitary.
     
@@ -24,45 +25,62 @@ def test_agent():
 
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = False
-    DEFAULT_OUTPUT_FOLDER = 'log_dir/video_thrugate_td3'
+    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_td3'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
 
     DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
     DEFAULT_ACT = ActionType('rpm') 
-    filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'recording_'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
+    # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'recording_'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
+    
+    print("\nInitializing environment...")
     env = FlyThruGateAvitary(gui=DEFAULT_GUI,
                            obs=DEFAULT_OBS,
                            act=DEFAULT_ACT,
                            record=DEFAULT_RECORD_VIDEO)
+
+    obs, info = env.reset()
+    state_dim = obs.shape[1]
+    action_dim = env.action_space.shape[1]
+
+    print(f"State dimension: {state_dim}")
+    print(f"Action dimension: {action_dim}")
+
+    print("\nInitializing agent...")
     agent = TD3Agent(
         Actor, Critic,
-        clip_low=-1.0, clip_high=1.0,
-        state_size=12,
-        action_size=4,
-        gamma=0.98,
-        tau=0.01,
-        lr=5e-4,
-        device="cuda" if torch.cuda.is_available() else "cpu"
+        state_size=state_dim,
+        action_size=action_dim,
     )
 
-    # Load checkpoint nếu có
-    agent.load_ckpt(
-        actor_path="log_dir/td3_thrugate/actor/mlp_model_ep100000_actor.pth",
-        critic_path1="log_dir/td3_thrugate/critics/mlp_model_ep100000_critic_1.pth",
-        critic_path2="log_dir/td3_thrugate/critics/mlp_model_ep100000_critic_2.pth",
-    )
+    print("Agent initialized.")
+    print("=" * 60)
 
-    agent.eval_mode()       
-    print("========== START TESTING ==========")
+    
+    # Load pretrained model
+    checkpoint_path = args.model_path
+    if not os.path.exists(checkpoint_path):
+        print(f"Error: Model file not found at {checkpoint_path}")
+        return
+    
+    print(f"Loading network from: {checkpoint_path}")
+    agent.load(checkpoint_path)
+    print("=" * 60)
 
-    rewards = []
-    lengths = []
-    successes = 0
+    agent.eval_mode()
+
+    total_test_episodes = args.episodes
+
+    print(f"\nStarting test for {total_test_episodes} episodes...")
+    print("=" * 60)
+
+    test_rewards = []
+    test_lengths = []
+    success_count = 0
     success_times = []
 
-    for ep in range(10):
+    for ep in range(total_test_episodes):
         obs, info = env.reset(seed=42 + ep, options={})
         ep_reward = 0
         ep_len = 0
@@ -77,16 +95,16 @@ def test_agent():
             env.render()
             sync(i, start, env.CTRL_TIMESTEP)
             if terminated or truncated:
-                if ep_reward > 5:
-                    successes += 1
+                if ep_reward > 10:
+                    success_count += 1
                     success_times.append(ep_len / env.CTRL_FREQ)
                 break
-        rewards.append(ep_reward)
-        lengths.append(ep_len)
+        test_rewards.append(ep_reward)
+        test_lengths.append(ep_len)
         print(f"Episode {ep+1}/10 | Reward {ep_reward:.2f} | Len {ep_len} | Success {'✓' if ep_reward>5 else '✗'}")
 
-    print(f"Avg reward: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}")
-    print(f"Success rate: {successes}/10 ({100*successes/10:.1f}%)")
+    print(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}")
+    print(f"Success rate: {success_count}/10 ({100*success_count/10:.1f}%)")
     if success_times:
         print(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
         print(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s")
@@ -94,6 +112,62 @@ def test_agent():
     print("========== TESTING COMPLETED ==========")
     env.close()
 
-if __name__ == "__main__":
-    # Test
-    test_agent()
+    # Print summary statistics
+    print("\n" + "=" * 88)
+    print("Test Summary")
+    print("=" * 88)
+    print(f"Total Episodes:        {total_test_episodes}")
+    print(f"Average Reward:        {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}")
+    print(f"Max Reward:            {np.max(test_rewards):.2f}")
+    print(f"Min Reward:            {np.min(test_rewards):.2f}")
+    print(f"Average Length:        {np.mean(test_lengths):.2f}")
+    print(f"Success Rate:          {success_count}/{total_test_episodes} "
+          f"({100 * success_count / total_test_episodes:.1f}%)")
+    print("=" * 88)
+
+    # Save summary
+    out_dir = os.path.join(DEFAULT_OUTPUT_FOLDER, "test_summary")
+    os.makedirs(out_dir, exist_ok=True)
+    summary_path = os.path.join(out_dir, "test_results_td3.txt")
+    with open(summary_path, "w") as f:
+        f.write("TD3 FlyThruGateAvitary Test Results\n")
+        f.write(f"Checkpoint: {checkpoint_path}\n")
+        f.write(f"Episodes: {total_test_episodes}\n")
+        f.write(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}\n")
+        f.write(f"Success rate: {success_count}/{total_test_episodes} ({100*success_count/total_test_episodes:.1f}%)\n")
+        if success_times:
+            f.write(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s\n")
+            f.write(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s\n")
+        f.write("\nEpisode details:\n")
+        for idx, (r, l) in enumerate(zip(test_rewards, test_lengths)):
+            f.write(f"Ep {idx+1}: reward={r:.2f}, len={l}")
+            if r > 5:
+                f.write(f", success_time={l/env.CTRL_FREQ:.2f}s")
+            f.write("\n")
+        if success_times:
+            f.write("\nSuccess times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
+    parser.add_argument('--model_path', type=str,
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate/td3_training/td3_20251213_174953/td3_model_final.pt',
+                       help='Path to the trained model checkpoint')
+    parser.add_argument('--episodes', type=int, default=5,
+                       help='Number of test episodes')
+    parser.add_argument('--record', type=bool, default=True,
+                       help='Record video of the test')
+    parser.add_argument('--gui', type=bool, default=True,
+                       help='Enable GUI visualization')
+
+    args = parser.parse_args()
+
+    print(f"\nTest Configuration:")
+    print(f"  Model Path: {args.model_path}")
+    print(f"  Episodes: {args.episodes}")
+    print(f"  Record Video: {args.record}")
+    print(f"  GUI: {args.gui}")
+    print()
+
+    test_agent(args)
+    

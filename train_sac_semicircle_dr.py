@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from gymnasium.vector import SyncVectorEnv
 
-from SAC.sac_agent import SACAgent, ReplayBuffer
+from agents.sac_agent import SACAgent, ReplayBuffer
 from randomized_semicircle_env import make_randomized_env
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 

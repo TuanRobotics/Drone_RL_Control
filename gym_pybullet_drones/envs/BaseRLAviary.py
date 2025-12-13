@@ -94,8 +94,8 @@ class BaseRLAviary(BaseAviary):
         if act == ActionType.VEL:
             self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000/3600)
         #### Racing setup ##########################################
-        self.w = 2.0 # 
-        self.h = 1.0 
+        self.w = 0.6 # 
+        self.h = 0.4 
         self.offset = 0.1
         self.racing_setup = { 0: [[0, 1, self.h/2+self.offset], [-self.w/2, 1, self.h+self.offset], [self.w/2, 1, self.h+self.offset], [-self.w/2, 1, self.offset], [self.w/2, 1, self.offset]],
                             1: [[0.5, 3, self.h/2+self.offset], [-self.w/2+0.5, 3, self.h+self.offset], [self.w/2+0.5, 3, self.h+self.offset], [-self.w/2+0.5, 3, self.offset], [self.w/2+0.5, 3, self.offset]],
