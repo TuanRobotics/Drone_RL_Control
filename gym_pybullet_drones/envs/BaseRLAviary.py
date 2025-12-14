@@ -327,7 +327,7 @@ class BaseRLAviary(BaseAviary):
                 obs_12[i, :] = np.hstack([obs[0:3], obs[7:10], obs[10:13], obs[13:16]]).reshape(12,)
                 #obs_18[i, :] = np.hstack([obs[0:3], obs[10:13], obs[13:16], rot_matrix]).reshape(18,)
             ret = np.array([obs_12[i, :] for i in range(self.NUM_DRONES)]).astype('float32')
-            return ret
+            return ret # [x,y,z, r,p,y, vx,vy,vz, wx,wy,wz] + action buffer
             ############################################################
         else:
             print("[ERROR] in BaseRLAviary._computeObs()")

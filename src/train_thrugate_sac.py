@@ -46,7 +46,7 @@ def train_sac(num_episodes=5000,
     action_dim = env.action_space.shape[1]  # 4 - number of action
 
     # Create agent and replay buffer
-    agent = SACAgent(state_dim, action_dim)
+    agent = SACAgent(state_dim, action_dim, hidden_dim=256)
     replay_buffer = ReplayBuffer(buffer_size)
 
     # Metrics

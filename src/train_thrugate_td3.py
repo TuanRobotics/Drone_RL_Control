@@ -68,6 +68,7 @@ def train_td3(num_episodes=20000,
 
     agent = TD3Agent(Actor,
                      Critic,
+                     hidden_dim=256,
                      clip_low=clip_low,
                      clip_high=clip_high,
                      state_size=state_dim,

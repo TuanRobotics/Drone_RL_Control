@@ -149,7 +149,7 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test PPO agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251213_174352/ppo_model_final.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251214_023140/ppo_model_final.pt',
                        help='Path to the trained model checkpoint')
 
     args = parser.parse_args()

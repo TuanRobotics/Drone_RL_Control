@@ -4,6 +4,8 @@ import os
 import numpy as np
 import pybullet as p
 import pkg_resources
+import gymnasium as gym
+from gymnasium import spaces
 
 from gym_pybullet_drones.envs.BaseRLAviary import BaseRLAviary
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
@@ -49,7 +51,7 @@ class FlyThruGateAvitary(BaseRLAviary):
         act : ActionType, optional
             The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
         """
-        self.EPISODE_LEN_SEC = 16  # Episode length in seconds
+        self.EPISODE_LEN_SEC = 8  # Episode length in seconds
         super().__init__(
             drone_model=drone_model,
             num_drones=num_drones,
@@ -64,12 +66,13 @@ class FlyThruGateAvitary(BaseRLAviary):
             act=act
         )
 
-        self.GATE_POS = np.array([0, -2, 0.3])  # Center of gate
-        self.FINAL_TARGET = np.array([0, -3, 0.5])
+        self.GATE_POS = np.array([0, -1.2, 0.0])  # Center of gate
+        self.FINAL_TARGET = np.array([0, -3, 0.25])
         self.passed_gate = False  # Flag for track if gate is passed
         self.GATE_ORN = None
 
         self.success_passed = False
+
 
     ##############################################################################
     # Load urdf to create the gate 
@@ -77,8 +80,8 @@ class FlyThruGateAvitary(BaseRLAviary):
 
         super()._addObstacles()
         boxId = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [0.0, -1.5, 0.3],
-                   p.getQuaternionFromEuler([0, 0, 1.5]),
+                   [0.0, -1.2, 0.0],
+                   p.getQuaternionFromEuler([0, 0, 1.578]),
                    physicsClientId=self.CLIENT
                    )
         self.GATE_POS, self.GATE_ORN = p.getBasePositionAndOrientation(boxId)
@@ -88,56 +91,100 @@ class FlyThruGateAvitary(BaseRLAviary):
         # state = self._getDroneStateVector(0)
         # norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
         # return max (0, 1 - np.linalg.norm(np.array([0, -3*norm_ep_time, 0.75])-state[0:3]))
-    def _computeReward(self): 
+    def _observationSpace(self):
+        """Returns the observation space of the environment.
 
-        """Reward for gate navigation task"""
+        Returns
+        -------
+        gym.spaces.Box
+            The observation space.
+
+        """
+        dim = 16 # [pos(3), vel(3), rpy(3), ang_vel(3), gate_pos(3), gate_orn(4)]
+        low = np.full((dim,), -np.inf, dtype=np.float32)
+        high = np.full((dim,), np.inf, dtype=np.float32)
+        return spaces.Box(low=low, high=high, dtype=np.float32)
+        
+    def _computeObs(self):
+        """Return concatenated state, reference, and tracking error.
+
+        Observation layout (float32):
+        [pos(3), vel(3), rpy(3), ang_vel(3), **noneed to include**
+         p_ref(3), v_ref(3), a_ref(3), yaw_ref(1),
+         e_p(3), e_v(3), e_yaw(1)]
+        """
+
         state = self._getDroneStateVector(0)
         pos = state[0:3]
-        vel = state[10:13]  # [vx, vy, vz]
+        rpy = state[7:10]
+        vel = state[10:13]
+        ang_vel = state[13:16]
+       
+        obs = np.concatenate(
+            [
+                pos, # 3
+                vel, # 3
+                rpy, # 3
+                ang_vel,   # 3
+                self.GATE_ORN,  # 4
+            ]
+        ).astype(np.float32)
+        return obs
+
+    def _computeReward(self): 
+        # """Reward for gate navigation task"""
+        state = self._getDroneStateVector(0)
+        norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
+        return max (0, 1 - np.linalg.norm(np.array([0, -2*norm_ep_time, 0.25])-state[0:3]))
+
+        # """Reward for gate navigation task"""
+        # state = self._getDroneStateVector(0)
+        # pos = state[0:3]
+        # vel = state[10:13]  # [vx, vy, vz]
         
-        # Position of gate and its normal vector
-        gate_pos = self.GATE_POS  # x, y, z của gate 
-        # print("Gate position:", gate_pos)
-        gate_normal = np.array([0.0, -1.0, 0.0])  # Direction 
+        # # Position of gate and its normal vector
+        # gate_pos = self.GATE_POS  # x, y, z của gate 
+        # # print("Gate position:", gate_pos)
+        # gate_normal = np.array([0.0, -1.0, 0.0])  # Direction 
         
-        # 1. Distance reward
-        way_point = gate_pos  + np.array([0.0, -0.5, 0.25])  # Waypoint at the center of the gate
-        self.FINAL_TARGET = way_point
-        # print(f"Way point:", way_point)
-        distance = np.linalg.norm(pos - way_point)  # Euclidean distance to waypoint allway > 0 
-        distance_reward = np.exp(-2.0 * distance) # max : 1 when distance = 0
+        # # 1. Distance reward
+        # way_point = gate_pos  + np.array([0.0, -1.0, 0.25])  # Waypoint at the center of the gate
+        # self.FINAL_TARGET = way_point
+        # # print(f"Way point:", way_point)
+        # distance = np.linalg.norm(pos - way_point)  # Euclidean distance to waypoint allway > 0 
+        # distance_reward = np.exp(-2.0 * distance) # max : 1 when distance = 0
         
-        # 2. Progress reward - reward for moving towards the gate : reward shaping
-        progress = np.dot(vel, gate_normal)  # Velocity component 
-        progress_reward = max(0, progress)   # max 0 if moving away from gate
+        # # 2. Progress reward - reward for moving towards the gate : reward shaping
+        # progress = np.dot(vel, gate_normal)  # Velocity component 
+        # progress_reward = max(0, progress)   # max 0 if moving away from gate
         
-        #3. Alignment reward - reward for going straight through the gate
-        vel_norm = np.linalg.norm(vel)
-        if vel_norm > 0.1:
-            alignment = np.dot(vel / vel_norm, gate_normal) # max 1 when fully aligned
-            alignment_reward = max(0, alignment)
-        else:
-            alignment_reward = 0
+        # # #3. Alignment reward - reward for going straight through the gate
+        # # vel_norm = np.linalg.norm(vel)
+        # # if vel_norm > 0.1:
+        # #     alignment = np.dot(vel / vel_norm, gate_normal) # max 1 when fully aligned
+        # #     alignment_reward = max(0, alignment)
+        # # else:
+        # #     alignment_reward = 0
         
-        # 4. Gate passing bonus - reward for passing through the gate
-        passed_gate = np.linalg.norm(pos - way_point) < 0.1 and pos[1] <= way_point[1]  # Passed y of gate and close to gate
-        if passed_gate:
-            reward = 10.0 
-            self.success_passed = True
-            return reward
+        # # 4. Gate passing bonus - reward for passing through the gate
+        # passed_gate = np.linalg.norm(pos - gate_pos) < 0.05 and pos[1] <= way_point[1]  # Passed y of gate and close to gate
+        # if passed_gate:
+        #     reward = 10.0 
+        #     self.success_passed = True
+        #     return reward
         
-        # 5. Penalty for collision or going out of bounds
-        out_of_bounds = abs(pos[0]) > 2.0 or abs(pos[1]) > 3.0 or pos[2] < 0.1 or pos[2] > 2.0
-        if out_of_bounds:
-            reward = -10.0
-            return reward
+        # # 5. Penalty for collision or going out of bounds
+        # out_of_bounds = abs(pos[0]) > 2.0 or abs(pos[1]) > 3.0 or pos[2] < 0.1 or pos[2] > 2.0
+        # if out_of_bounds:
+        #     reward = -10.0
+        #     return reward
         
-        # Total reward (can tune coefficients)
-        reward = (
-            2.0 * distance_reward +      
-            1.0 * progress_reward + 0.1*alignment_reward       
-        )
-        return reward
+        # # Total reward (can tune coefficients)
+        # reward = (
+        #     2.0 * distance_reward +      
+        #     1.0 * progress_reward       
+        # )
+        # return reward
     
     def _computeTruncated(self):
         """Compute the truncated flag for the current step.
@@ -166,7 +213,7 @@ class FlyThruGateAvitary(BaseRLAviary):
         state = self._getDroneStateVector(0)
         distance = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
         # Success condition: close to final target
-        if distance < 0.2:
+        if distance < 0.1:
             self.success_passed = True
             return True
         
