@@ -20,6 +20,16 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def _reshape_action_for_env(action, action_space):
+    """Ensure actions always match the env's expected (NUM_DRONES, 4) shape."""
+    action = np.asarray(action, dtype=np.float32)
+    if action.ndim == 1:
+        action = np.expand_dims(action, axis=0)
+    try:
+        action = action.reshape(action_space.shape)
+    except Exception:
+        pass
+    return action
 
 def test(args):
     print("=" * 60)
@@ -34,7 +44,7 @@ def test(args):
     DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_sac'
 
     total_test_episodes = args.episodes
-    hidden_dim = 64
+    hidden_dim = 256  # Hidden layer dimension for networks
     #####################################################
 
     # Initialize environment
@@ -53,8 +63,8 @@ def test(args):
 
     # Get state and action dimensions
     obs, _ = env.reset()
-    state_dim = obs.shape[1]                # số chiều state
-    action_dim = env.action_space.shape[1]  # số chiều action
+    state_dim = int(np.prod(obs.shape))                # số chiều state
+    action_dim = int(np.prod(env.action_space.shape))  # số chiều action
 
     print(f"State dimension: {state_dim}")
     print(f"Action dimension: {action_dim}")
@@ -97,7 +107,7 @@ def test(args):
         for i in range(max_steps):
             # Select action (deterministic for testing)
             action = sac_agent.select_action(obs, evaluate=True)
-
+            action = _reshape_action_for_env(action, env.action_space)
             # Execute action
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
@@ -173,7 +183,7 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test SAC agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/src/sac_training/sac_20251213_031142/sac_model_final.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate/sac_20251214_044134/sac_model_final.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=5,
                        help='Number of test episodes')

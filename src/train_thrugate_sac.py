@@ -16,6 +16,18 @@ from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, ObservationType
 
 
+def _reshape_action_for_env(action, action_space):
+    """Ensure actions always match the env's expected (NUM_DRONES, 4) shape."""
+    action = np.asarray(action, dtype=np.float32)
+    if action.ndim == 1:
+        action = np.expand_dims(action, axis=0)
+    try:
+        action = action.reshape(action_space.shape)
+    except Exception:
+        pass
+    return action
+
+
 # ============================================================================
 # Training Function
 # ============================================================================
@@ -42,11 +54,11 @@ def train_sac(num_episodes=5000,
 
     # Get dimensions
     obs, _ = env.reset()
-    state_dim = obs.shape[1]  # 12 - number of state
-    action_dim = env.action_space.shape[1]  # 4 - number of action
+    state_dim = int(np.prod(env.observation_space.shape))  # 16 - number of state and observation features
+    action_dim = int(np.prod(env.action_space.shape))  # 4 - number of action dimensions
 
     # Create agent and replay buffer
-    agent = SACAgent(state_dim, action_dim, hidden_dim=256)
+    agent = SACAgent(state_dim, action_dim=action_dim, hidden_dim=256)
     replay_buffer = ReplayBuffer(buffer_size)
 
     # Metrics
@@ -69,7 +81,7 @@ def train_sac(num_episodes=5000,
     print("=" * 60 + "\n")
 
     for episode in range(num_episodes):
-        state = env.reset()
+        state, _ = env.reset()
         episode_reward = 0
         episode_length = 0
 
@@ -79,9 +91,14 @@ def train_sac(num_episodes=5000,
                 action = env.action_space.sample()  # Random action
             else:
                 action = agent.select_action(state)
+            action_env = _reshape_action_for_env(action, env.action_space)
+            if episode == 1:
+                print("Sampled action:", action_env)
+            if episode == start_steps + 1 and step == 0:
+                print("Action after training starts:", action_env)
 
             # Execute action
-            next_state, reward, done, truncated, info = env.step(action)
+            next_state, reward, done, truncated, info = env.step(action_env)
             episode_reward += reward
             episode_length += 1
             total_steps += 1
@@ -159,13 +176,14 @@ def evaluate_policy(env, agent, num_episodes=5):
     eval_rewards = []
 
     for _ in range(num_episodes):
-        state = env.reset()
+        state, _ = env.reset()
         episode_reward = 0
         done = False
 
         while not done:
             action = agent.select_action(state, evaluate=True)
-            next_state, reward, done, truncated, _ = env.step(action)
+            action_env = _reshape_action_for_env(action, env.action_space)
+            next_state, reward, done, truncated, _ = env.step(action_env)
             episode_reward += reward
             state = next_state
 

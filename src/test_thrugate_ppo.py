@@ -59,7 +59,7 @@ def test(args):
                          record=DEFAULT_RECORD_VIDEO)
 
     # state space dimension
-    state_dim = 12
+    state_dim = 16
     # action space dimension
     action_dim = 4
 
@@ -149,7 +149,7 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test PPO agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251214_023140/ppo_model_final.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251214_044104/ppo_model_final.pt',
                        help='Path to the trained model checkpoint')
 
     args = parser.parse_args()

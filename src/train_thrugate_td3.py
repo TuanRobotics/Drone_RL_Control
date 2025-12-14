@@ -61,8 +61,10 @@ def train_td3(num_episodes=20000,
                              gui=gui)
 
     obs, _ = env.reset()
-    state_dim = obs.shape[1]
-    action_dim = env.action_space.shape[1]
+    state_dim = int(np.prod(env.observation_space.shape))
+    action_dim = int(np.prod(env.action_space.shape))
+    print( "State dim:", state_dim)
+    print( "Action dim:", action_dim)
     clip_low = float(np.min(env.action_space.low))
     clip_high = float(np.max(env.action_space.high))
 
@@ -104,6 +106,10 @@ def train_td3(num_episodes=20000,
                 action = agent.get_action(state, explore=True)
 
             action = _reshape_action_for_env(action, env.action_space)
+            if episode == 1:
+                print("Sampled action:", action)
+            if episode == warmup_steps + 1 and step == 0:
+                print("Action after training starts:", action)
 
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated

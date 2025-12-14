@@ -80,8 +80,8 @@ class FlyThruGateAvitary(BaseRLAviary):
 
         super()._addObstacles()
         boxId = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [0.0, -1.2, 0.0],
-                   p.getQuaternionFromEuler([0, 0, 1.578]),
+                   [0.0, -1.0, 0.0],
+                   p.getQuaternionFromEuler([0, 0, 1.57]),
                    physicsClientId=self.CLIENT
                    )
         self.GATE_POS, self.GATE_ORN = p.getBasePositionAndOrientation(boxId)
@@ -109,9 +109,13 @@ class FlyThruGateAvitary(BaseRLAviary):
         """Return concatenated state, reference, and tracking error.
 
         Observation layout (float32):
-        [pos(3), vel(3), rpy(3), ang_vel(3), **noneed to include**
-         p_ref(3), v_ref(3), a_ref(3), yaw_ref(1),
-         e_p(3), e_v(3), e_yaw(1)]
+        [0:3]   -> position (x, y, z) (m)
+        [3:7]   -> orientation (quaternion x, y, z, w)
+        [7:10]  -> roll, pitch, yaw (rad)   
+        [10:13] -> linear velocity (vx, vy, vz) (m/s)
+        [13:16] -> angular velocity (wx, wy, wz) (rad/s)
+        [16:19] -> gate position (x, y, z) (m)
+        [19:23] -> gate orientation (quaternion x, y, z, w)
         """
 
         state = self._getDroneStateVector(0)

@@ -41,8 +41,8 @@ def train_ppo():
                              act=ActionType.RPM)
 
     obs, _ = env.reset()
-    state_dim = 12
-    action_dim = 4
+    state_dim = int(np.prod(env.observation_space.shape))
+    action_dim = int(np.prod(env.action_space.shape))
 
     # Hyperparameters PPO 
     K_epochs=80
@@ -83,7 +83,7 @@ def train_ppo():
     total_timesteps = 0
     update_timestep = env.EPISODE_LEN_SEC*env.CTRL_FREQ * 4
     log_freq =  env.EPISODE_LEN_SEC*env.CTRL_FREQ * 2
-    max_training_timesteps = int(5e6)
+    max_training_timesteps = int(3e6)
     total_timesteps = 0
     i_episode = 0
     log_running_reward = 0
@@ -97,6 +97,8 @@ def train_ppo():
         for i in range(env.EPISODE_LEN_SEC * env.CTRL_FREQ):
             action = agent.select_action(state)
             action_env = _reshape_action_for_env(action, env.action_space)
+            if i_episode == 1:
+                print("Sampled action:", action_env)
 
             next_state, reward, terminated, truncated, _ = env.step(action_env)
             done = terminated or truncated 
