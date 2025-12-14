@@ -24,8 +24,8 @@ def test_agent(args):
     """
 
     DEFAULT_GUI = True
-    DEFAULT_RECORD_VIDEO = False
-    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_td3'
+    DEFAULT_RECORD_VIDEO = True
+    DEFAULT_OUTPUT_FOLDER = '/home/tuan/Desktop/drone_rl_control/results_test_td3_thrugate'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
@@ -85,6 +85,7 @@ def test_agent(args):
         ep_reward = 0
         ep_len = 0
         start = time.time()
+        env.success_passed = False
 
         for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
             action = agent.get_action(obs, explore=False)
@@ -95,13 +96,14 @@ def test_agent(args):
             env.render()
             sync(i, start, env.CTRL_TIMESTEP)
             if terminated or truncated:
-                if ep_reward > 10:
+                # If success, the inside env will have env.success_passed = True
+                if env.success_passed:
                     success_count += 1
                     success_times.append(ep_len / env.CTRL_FREQ)
                 break
         test_rewards.append(ep_reward)
         test_lengths.append(ep_len)
-        print(f"Episode {ep+1}/10 | Reward {ep_reward:.2f} | Len {ep_len} | Success {'✓' if ep_reward>5 else '✗'}")
+        print(f"Episode {ep+1}/10 | Reward {ep_reward:.2f} | Len {ep_len} | Success {'✓' if env.success_passed else '✗'}")
 
     print(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}")
     print(f"Success rate: {success_count}/10 ({100*success_count/10:.1f}%)")
@@ -151,7 +153,7 @@ def test_agent(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate/td3_training/td3_20251213_174953/td3_model_final.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate/td3_training/td3_20251214_003447/td3_model_final.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=5,
                        help='Number of test episodes')

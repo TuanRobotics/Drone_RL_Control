@@ -1,0 +1,61 @@
+{
+  "train": {
+    "seed": 42,
+    "gui": false,
+    "record_video": false,
+    "eval_every_episodes": 25,
+    "eval_episodes": 5,
+    "log_every_episode": 1,
+    "print_every_episodes": 5,
+    "save_every_timesteps": 100000,
+    "run_name": "ppo_thrugate_curriculum",
+    "log_root": "log_dir/ppo_training_thrugate",
+    "start_level": 0,
+    "success_window": 30,
+    "success_rate_threshold": 0.7
+  },
+  "ppo": {
+    "max_training_timesteps": 3000000,
+    "action_std": 0.6,
+    "action_std_decay_rate": 0.05,
+    "min_action_std": 0.1,
+    "action_std_decay_freq": 250000,
+    "K_epochs": 80,
+    "eps_clip": 0.2,
+    "gamma": 0.99,
+    "lr_actor": 0.0003,
+    "lr_critic": 0.001
+  },
+  "env": {
+    "episode_len_sec": 12,
+    "ctrl_freq": 30,
+    "gate_pos": [
+      0.0,
+      -1.0,
+      0.0
+    ],
+    "spawn_ranges": [
+      [
+        0.05,
+        0.25
+      ],
+      [
+        0.15,
+        0.44999999999999996
+      ],
+      [
+        0.8250000000000001,
+        1.375
+      ],
+      [
+        1.125,
+        1.875
+      ],
+      [
+        1.5,
+        2.5
+      ]
+    ],
+    "num_levels": 5
+  }
+}

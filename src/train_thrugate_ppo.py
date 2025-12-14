@@ -83,7 +83,7 @@ def train_ppo():
     total_timesteps = 0
     update_timestep = env.EPISODE_LEN_SEC*env.CTRL_FREQ * 4
     log_freq =  env.EPISODE_LEN_SEC*env.CTRL_FREQ * 2
-    max_training_timesteps = int(3e6)
+    max_training_timesteps = int(5e6)
     total_timesteps = 0
     i_episode = 0
     log_running_reward = 0
@@ -140,9 +140,12 @@ def train_ppo():
             print(f"\n{'='*60}")
             print(
                 f"Episode {i_episode} | "
+                f"Steps: {total_timesteps} | "
+                f"Reward: {episode_reward:.2f} | "
                 f"Avg Reward over 100 episodes: {avg_reward_100:.2f} | "
                 f"Evaluation at Episode {i_episode}: Avg Evaluated Reward = {eval_reward:.2f}"
             )
+
 
             print(f"{'='*60}\n")
     env.close()

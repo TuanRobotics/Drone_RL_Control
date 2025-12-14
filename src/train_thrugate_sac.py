@@ -19,7 +19,7 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, Obs
 # ============================================================================
 # Training Function
 # ============================================================================
-def train_sac(num_episodes=10000,
+def train_sac(num_episodes=5000,
               max_steps=500,
               batch_size=256,
               buffer_size=1000000,
@@ -129,11 +129,11 @@ def train_sac(num_episodes=10000,
             print(f"{'='*60}\n")
 
         # Early stopping if solved
-        if avg_reward_100 >= 120:
-            print(f"\nEnvironment solved in {episode+1} episodes!")
-            print(f"Average Reward: {avg_reward_100:.2f}")
-            print(f"{'='*60}\n")
-            break
+        # if avg_reward_100 >= 120:
+        #     print(f"\nEnvironment solved in {episode+1} episodes!")
+        #     print(f"Average Reward: {avg_reward_100:.2f}")
+        #     print(f"{'='*60}\n")
+        #     break
 
         # # Save model
         # if (episode + 1) % save_every == 0:

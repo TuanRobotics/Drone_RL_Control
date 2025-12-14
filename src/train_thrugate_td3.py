@@ -48,7 +48,7 @@ def _reshape_action_for_env(action, action_space):
         action = np.expand_dims(action, axis=0)
     return action
 
-def train_td3(num_episodes=10000,
+def train_td3(num_episodes=20000,
               max_steps=500,
               learn_every=1,
               warmup_steps=50,
@@ -146,11 +146,11 @@ def train_td3(num_episodes=10000,
             print(f"{'='*60}\n")
 
         # Early stopping
-        if avg_reward_100 >= 120:
-            print(f"\nEnvironment solved in {episode+1} episodes!")
-            print(f"Average Reward: {avg_reward_100:.2f}")
-            print(f"{'='*60}\n")
-            break
+        # if avg_reward_100 >= 120:
+        #     print(f"\nEnvironment solved in {episode+1} episodes!")
+        #     print(f"Average Reward: {avg_reward_100:.2f}")
+        #     print(f"{'='*60}\n")
+        #     break
 
     env.close()
 
@@ -240,5 +240,5 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
 
 
 if __name__ == '__main__':
-    train_td3()
+    train_td3(num_episodes=20000)
 
