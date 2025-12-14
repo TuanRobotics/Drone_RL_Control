@@ -25,7 +25,7 @@ def test_agent(args):
 
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = True
-    DEFAULT_OUTPUT_FOLDER = '/home/tuan/Desktop/drone_rl_control/results_test_td3_thrugate'
+    DEFAULT_OUTPUT_FOLDER = './results/results_test_td3_thrugate'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
@@ -38,7 +38,8 @@ def test_agent(args):
     env = FlyThruGateAvitary(gui=DEFAULT_GUI,
                            obs=DEFAULT_OBS,
                            act=DEFAULT_ACT,
-                           record=DEFAULT_RECORD_VIDEO)
+                           record=DEFAULT_RECORD_VIDEO,
+                           output_folder=DEFAULT_OUTPUT_FOLDER)
 
     obs, info = env.reset()
     state_dim = obs.shape[1]

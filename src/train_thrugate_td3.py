@@ -134,6 +134,12 @@ def train_td3(num_episodes=20000,
         episode_rewards.append(episode_reward)
         avg_reward_100 = np.mean(episode_rewards[-100:])
 
+        # Save model every e5000 episodes
+        if episode % 5000 == 0 and episode > 0:
+            agent.save(os.path.join(save_dir, f"td3_model_ep{episode}.pt"))
+            plot_training_curves(episode_rewards, eval_rewards, critic_losses,
+                                 actor_losses, save_dir, episode)
+            
         if (episode + 1) % 10 == 0:
             avg_reward_10 = np.mean(episode_rewards[-10:])
             print(f"Episode {episode+1}/{num_episodes} | "

@@ -41,7 +41,7 @@ def test(args):
     DEFAULT_RECORD_VIDEO = True
     DEFAULT_OBS = ObservationType('kin')
     DEFAULT_ACT = ActionType('rpm')
-    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_sac'
+    DEFAULT_OUTPUT_FOLDER = './results/results_thrugate_sac'
 
     total_test_episodes = args.episodes
     hidden_dim = 256  # Hidden layer dimension for networks
@@ -58,7 +58,8 @@ def test(args):
         gui=DEFAULT_GUI,
         record=DEFAULT_RECORD_VIDEO,
         obs=DEFAULT_OBS,
-        act=DEFAULT_ACT
+        act=DEFAULT_ACT,
+        output_folder=DEFAULT_OUTPUT_FOLDER
     )
 
     # Get state and action dimensions

@@ -22,7 +22,8 @@ class FlyThruGateAvitary(BaseRLAviary):
                 gui: bool = False,
                 record=False,
                 obs: ObservationType = ObservationType.KIN,
-                act: ActionType = ActionType.RPM
+                act: ActionType = ActionType.RPM,
+                output_folder="results"
                 ):
         """
         Initialization of a single agent RL environment.
@@ -63,7 +64,8 @@ class FlyThruGateAvitary(BaseRLAviary):
             gui=gui,
             record=record,
             obs=obs,
-            act=act
+            act=act,
+            output_folder=output_folder
         )
 
         self.GATE_POS = np.array([0, -1.2, 0.0])  # Center of gate

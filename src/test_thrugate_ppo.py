@@ -16,6 +16,16 @@ from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
+def _reshape_action_for_env(action, action_space):
+    """Ensure actions always match the env's expected (NUM_DRONES, 4) shape."""
+    action = np.asarray(action, dtype=np.float32)
+    if action.ndim == 1:
+        action = np.expand_dims(action, axis=0)
+    try:
+        action = action.reshape(action_space.shape)
+    except Exception:
+        pass
+    return action
 
 #################################### Testing ###################################
 def test(args):
@@ -41,7 +51,7 @@ def test(args):
     #####################################################
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = True
-    DEFAULT_OUTPUT_FOLDER = 'log_dir/results_thrugate_ppo'
+    DEFAULT_OUTPUT_FOLDER = './results/results_thrugate_ppo'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
@@ -56,7 +66,9 @@ def test(args):
     env = FlyThruGateAvitary(gui=DEFAULT_GUI,
                          obs=DEFAULT_OBS,
                          act=DEFAULT_ACT,
-                         record=DEFAULT_RECORD_VIDEO)
+                         record=DEFAULT_RECORD_VIDEO,
+                         output_folder=DEFAULT_OUTPUT_FOLDER
+                         )
 
     # state space dimension
     state_dim = 16
@@ -94,7 +106,7 @@ def test(args):
         start = time.time()
         for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
             action = ppo_agent.select_action(obs)
-            action = np.expand_dims(action, axis=0)
+            action = _reshape_action_for_env(action, env.action_space)
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
             ep_len += 1
