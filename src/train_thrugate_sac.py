@@ -124,7 +124,7 @@ def train_sac(num_episodes=5000,
         episode_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
 
-        if episode % 5000 == 0 and episode > 0:
+        if episode % 1000 == 0 and episode > 0:
             agent.save(os.path.join(save_dir, f"sac_model_ep{episode}.pt"))
             plot_training_curves(episode_rewards, eval_rewards, q1_losses,
                                  policy_losses, save_dir, episode)

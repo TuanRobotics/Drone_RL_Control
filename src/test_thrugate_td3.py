@@ -10,6 +10,16 @@ from datetime import datetime
 import time
 from gym_pybullet_drones.utils.utils import sync
 
+def _reshape_action_for_env(action, action_space):
+    """Ensure actions always match the env's expected (NUM_DRONES, 4) shape."""
+    action = np.asarray(action, dtype=np.float32)
+    if action.ndim == 1:
+        action = np.expand_dims(action, axis=0)
+    try:
+        action = action.reshape(action_space.shape)
+    except Exception:
+        pass
+    return action
 
 def test_agent(args):
     """
@@ -31,10 +41,10 @@ def test_agent(args):
     DEFAULT_COLAB = False
 
     DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
-    DEFAULT_ACT = ActionType('rpm') 
+    DEFAULT_ACT = ActionType('rpm')
     # filename = os.path.join(DEFAULT_OUTPUT_FOLDER, 'recording_'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
     
-    print("\nInitializing environment...")
+    print("\nInitializing environment...") 
     env = FlyThruGateAvitary(gui=DEFAULT_GUI,
                            obs=DEFAULT_OBS,
                            act=DEFAULT_ACT,
@@ -42,8 +52,8 @@ def test_agent(args):
                            output_folder=DEFAULT_OUTPUT_FOLDER)
 
     obs, info = env.reset()
-    state_dim = obs.shape[1]
-    action_dim = env.action_space.shape[1]
+    state_dim = int(np.prod(env.observation_space.shape))
+    action_dim = int(np.prod(env.action_space.shape))
 
     print(f"State dimension: {state_dim}")
     print(f"Action dimension: {action_dim}")
@@ -51,6 +61,7 @@ def test_agent(args):
     print("\nInitializing agent...")
     agent = TD3Agent(
         Actor, Critic,
+        hidden_dim=256,
         state_size=state_dim,
         action_size=action_dim,
     )
@@ -90,7 +101,7 @@ def test_agent(args):
 
         for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
             action = agent.get_action(obs, explore=False)
-            action = np.expand_dims(action, axis=0)
+            action = _reshape_action_for_env(action, env.action_space)
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
             ep_len += 1
@@ -154,7 +165,7 @@ def test_agent(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate/td3_training/td3_20251214_003447/td3_model_final.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251216_225357/td3_model_ep4000.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=5,
                        help='Number of test episodes')

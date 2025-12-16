@@ -37,8 +37,19 @@ def train_ppo():
                              pyb_freq=240,
                              ctrl_freq=30,
                              gui=False,
+                             use_curriculum=False,
                              obs=ObservationType.KIN,
                              act=ActionType.RPM)
+    
+    env_eval = FlyThruGateAvitary(drone_model=DroneModel.CF2X,
+                                 initial_xyzs=np.array([[0, 0, 0.5]]),
+                                 physics=Physics.PYB,
+                                 pyb_freq=240,
+                                 ctrl_freq=30,
+                                 gui=False,
+                                 use_curriculum=False,
+                                 obs=ObservationType.KIN,
+                                 act=ActionType.RPM)
 
     obs, _ = env.reset()
     state_dim = int(np.prod(env.observation_space.shape))
@@ -50,11 +61,11 @@ def train_ppo():
     gamma=0.99
     lr_actor=3e-4
     lr_critic=1e-3
-    action_std=0.6
+    action_std=0.7
     action_std_decay_rate=0.05
     min_action_std=0.1
     action_std_decay_freq=int(2.5e5)
-    eval_every=50
+    eval_every=100
     num_eval_episodes=5
 
     agent = PPO(state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs,
@@ -81,9 +92,9 @@ def train_ppo():
     print("=" * 60 + "\n")
 
     total_timesteps = 0
-    update_timestep = env.EPISODE_LEN_SEC*env.CTRL_FREQ * 4
-    log_freq =  env.EPISODE_LEN_SEC*env.CTRL_FREQ * 2
-    max_training_timesteps = int(3e6)
+    update_timestep = env.EPISODE_LEN_SEC*env.CTRL_FREQ * 2
+    log_freq =  env.EPISODE_LEN_SEC*env.CTRL_FREQ * 4
+    max_training_timesteps = int(5e6) 
     total_timesteps = 0
     i_episode = 0
     log_running_reward = 0
@@ -91,7 +102,7 @@ def train_ppo():
     loss_steps = []
 
     while total_timesteps <= max_training_timesteps:
-        state, _ = env.reset(seed=42, options={})
+        state, _ = env.reset()
         episode_reward = 0
 
         for i in range(env.EPISODE_LEN_SEC * env.CTRL_FREQ):
@@ -110,10 +121,10 @@ def train_ppo():
             episode_reward += reward
             state = next_state
 
-            if total_timesteps % update_timestep == 0:
+            if total_timesteps % update_timestep == 0: 
                 loss_obj = agent.update()
                 losses.append(loss_obj)
-                loss_steps.append(total_timesteps)
+                loss_steps.append(total_timesteps) 
 
             if total_timesteps % action_std_decay_freq == 0:
                 agent.decay_action_std(action_std_decay_rate, min_action_std)
@@ -136,8 +147,27 @@ def train_ppo():
         avg_reward_100 = np.mean(episode_rewards[-100:])
         i_episode += 1
 
+        if i_episode % 2400 == 0:
+            agent.save(save_dir / f"ppo_model_ep{i_episode}.pt")
+            # Plot training curves
+            plt.figure()
+            plt.plot(episode_rewards, alpha=0.3, label="Episode Reward")
+            if len(episode_rewards) >= 50:
+                smoothed = np.convolve(episode_rewards, np.ones(50) / 50, mode='valid')
+                plt.plot(range(49, len(episode_rewards)), smoothed,
+                         label='Smoothed (50 episodes)', linewidth=2)
+            plt.xlabel("Episodes")
+            plt.ylabel("Rewards")
+            plt.title("PPO Training Rewards over Episodes")
+            plt.legend()
+            plt.grid()
+            plt.tight_layout()
+            plt.savefig(save_dir / f"ppo_rewards_ep{i_episode}.png")
+            plt.close()
+            
+
         if (i_episode) % eval_every == 0:
-            eval_reward = evaluate_policy(env, agent, num_eval_episodes)
+            eval_reward = evaluate_policy(env_eval, agent, num_eval_episodes)
             eval_rewards.append(eval_reward)
             print(f"\n{'='*60}")
             print(
@@ -148,9 +178,10 @@ def train_ppo():
                 f"Evaluation at Episode {i_episode}: Avg Evaluated Reward = {eval_reward:.2f}"
             )
 
-
             print(f"{'='*60}\n")
     env.close()
+    env_eval.close()
+    log_f.close()
 
     print(f"{'='*60}\n")
     agent.save(save_dir / "ppo_model_final.pt")
@@ -175,7 +206,7 @@ def evaluate_policy(env, agent, num_episodes=5):
     policy_device = next(agent.policy_old.parameters()).device
 
     for _ in range(num_episodes):
-        state, _ = env.reset()
+        state, _ = env.reset(seed=42, options={})
         episode_reward = 0
         done = False
 

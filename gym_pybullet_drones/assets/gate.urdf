@@ -13,7 +13,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./assets/gate.obj" scale=" .02 .02 .02"/>
+        <mesh filename="./assets/gate.obj" scale=" .018 .018 .018"/>
       </geometry>
       <material name="grey">
         <color rgba="1.0. 1.0. 0.5. 1"/>

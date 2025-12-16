@@ -184,7 +184,7 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test SAC agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate/sac_20251214_044134/sac_model_final.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate/sac_20251214_113410/sac_model_final.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=5,
                        help='Number of test episodes')

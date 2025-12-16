@@ -142,8 +142,8 @@ class SACAgent:
         # Critics
         self.q1 = QNetwork(state_dim, action_dim, hidden_dim).to(device)
         self.q2 = QNetwork(state_dim, action_dim, hidden_dim).to(device)
-        self.q1_optimizer = torch.optim.Adam(self.q1.parameters(), lr=lr)
-        self.q2_optimizer = torch.optim.Adam(self.q2.parameters(), lr=lr)
+        self.q1_optimizer = torch.optim.Adam(self.q1.parameters(), lr=1e-3)
+        self.q2_optimizer = torch.optim.Adam(self.q2.parameters(), lr=1e-3)
 
         # Target Critics
         self.q1_target = QNetwork(state_dim, action_dim, hidden_dim).to(device)
@@ -155,7 +155,7 @@ class SACAgent:
         if self.automatic_entropy_tuning:
             self.target_entropy = -action_dim
             self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
-            self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
+            self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
 
     def select_action(self, state, evaluate=False):
 

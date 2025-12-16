@@ -124,7 +124,7 @@ class TD3Agent:
                  clip_high=1,
                  hidden_dim=64,
                  lr_actor=3e-4,
-                 lr_critic=3e-4,
+                 lr_critic=1e-3,
                  gamma=0.99,
                  tau=0.005,
                  policy_noise=0.2,

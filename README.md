@@ -15,7 +15,6 @@ Flying a quadrotor through narrow gates is a compact but challenging robotics be
 + Extend to racing (multi-gate tracks).
 + Run an ablation study on:
 + Reward shaping
-+ Curriculum learning
 + Reward shaping + curriculum
 ### Method
 
@@ -24,12 +23,11 @@ Flying a quadrotor through narrow gates is a compact but challenging robotics be
 + RL algorithms (project-dependent): e.g., PPO / SAC / TD3.
 
 + Reward shaping provides denser learning signals; we follow the classic policy-invariance perspective on shaping rewards.
-
 Curriculum learning gradually increases task difficulty (spawn distance, gate size/yaw, speed), which is especially helpful under sparse rewards.
 
 ### Key Contributions
 + An RL training pipeline for narrow-gate navigation, with extension to racing.
-+ Controlled comparison of Sparse, Shaping, Curriculum, and Shaping+Curriculum.
++ Controlled comparison of Shaping, Curriculum, and Shaping+Curriculum.
 + Evaluation with success rate, learning curves, time-to-threshold success, and stability/generalization.
 
 ### References
@@ -42,7 +40,7 @@ Curriculum learning gradually increases task difficulty (spawn distance, gate si
 
 ## Research Description (Updated 2025-12-08)
 - Goal: learn end-to-end policies for stable flight through a narrow gate and extend to racing layouts. Compare sparse vs. shaped rewards and curriculum scheduling.
-- Environments: `gym_pybullet_drones/envs/FlyThruGateAvitary.py` (single gate, 0.6 m × 0.4 m opening after scaling), `gym_pybullet_drones/envs/DroneRacingAviary.py` (multi-gate track). Gate mesh in `gym_pybullet_drones/assets/gate.obj` with scale set in `gate.urdf`.
+- Environments: `gym_pybullet_drones/envs/FlyThruGateAvitary.py` (single gate, ~0.54 m × 0.36 m opening after scaling), `gym_pybullet_drones/envs/DroneRacingAviary.py` (multi-gate track). Gate mesh in `gym_pybullet_drones/assets/gate.obj` with scale set in `gate.urdf`.
 - Agents: implementations in `agents/ppo_agent.py`, SAC/TD3 agents under `agents/`. Training scripts in `src/train_thrugate_ppo.py`, `src/train_thrugate_sac.py`, `src/train_thrugate_td3.py`, and racing script `src/train_racing_ppo.py`.
 - Reward shaping vs curriculum: four experiment settings planned (below). Logs and checkpoints are written under `log_dir/`.
 

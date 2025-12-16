@@ -20,7 +20,10 @@ class FlyThruGateAvitary(BaseRLAviary):
                 pyb_freq: int=240,
                 ctrl_freq: int=30,
                 gui: bool = False,
+                curriculum_level: int = 0,
+                max_curriculum_level: int = 5,
                 record=False,
+                use_curriculum: bool = False,
                 obs: ObservationType = ObservationType.KIN,
                 act: ActionType = ActionType.RPM,
                 output_folder="results"
@@ -67,13 +70,17 @@ class FlyThruGateAvitary(BaseRLAviary):
             act=act,
             output_folder=output_folder
         )
+        self.use_curriculum = use_curriculum
+        self.curriculum_level = curriculum_level
+        self.max_curriculum_level = max_curriculum_level
 
-        self.GATE_POS = np.array([0, -1.2, 0.0])  # Center of gate
-        self.FINAL_TARGET = np.array([0, -3, 0.25])
+        self.GATE_POS = np.array([0, -1.0, 0.0])  # Center of gate
+        self.FINAL_TARGET = np.array([0, -1.5, 0.25])
         self.passed_gate = False  # Flag for track if gate is passed
         self.GATE_ORN = None
 
         self.success_passed = False
+        self.center_gate_passed = False
 
 
     ##############################################################################
@@ -87,12 +94,8 @@ class FlyThruGateAvitary(BaseRLAviary):
                    physicsClientId=self.CLIENT
                    )
         self.GATE_POS, self.GATE_ORN = p.getBasePositionAndOrientation(boxId)
-    ##############################################################################
-    # def _computeReward(self):
-        # """Reward for gate navigation task"""
-        # state = self._getDroneStateVector(0)
-        # norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
-        # return max (0, 1 - np.linalg.norm(np.array([0, -3*norm_ep_time, 0.75])-state[0:3]))
+            
+        
     def _observationSpace(self):
         """Returns the observation space of the environment.
 
@@ -141,56 +144,8 @@ class FlyThruGateAvitary(BaseRLAviary):
         # """Reward for gate navigation task"""
         state = self._getDroneStateVector(0)
         norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
-        return max (0, 1 - np.linalg.norm(np.array([0, -2*norm_ep_time, 0.25])-state[0:3]))
+        return 2*max (0, 1 - np.linalg.norm(np.array([0, -2*norm_ep_time, 0.2])-state[0:3]))
 
-        # """Reward for gate navigation task"""
-        # state = self._getDroneStateVector(0)
-        # pos = state[0:3]
-        # vel = state[10:13]  # [vx, vy, vz]
-        
-        # # Position of gate and its normal vector
-        # gate_pos = self.GATE_POS  # x, y, z của gate 
-        # # print("Gate position:", gate_pos)
-        # gate_normal = np.array([0.0, -1.0, 0.0])  # Direction 
-        
-        # # 1. Distance reward
-        # way_point = gate_pos  + np.array([0.0, -1.0, 0.25])  # Waypoint at the center of the gate
-        # self.FINAL_TARGET = way_point
-        # # print(f"Way point:", way_point)
-        # distance = np.linalg.norm(pos - way_point)  # Euclidean distance to waypoint allway > 0 
-        # distance_reward = np.exp(-2.0 * distance) # max : 1 when distance = 0
-        
-        # # 2. Progress reward - reward for moving towards the gate : reward shaping
-        # progress = np.dot(vel, gate_normal)  # Velocity component 
-        # progress_reward = max(0, progress)   # max 0 if moving away from gate
-        
-        # # #3. Alignment reward - reward for going straight through the gate
-        # # vel_norm = np.linalg.norm(vel)
-        # # if vel_norm > 0.1:
-        # #     alignment = np.dot(vel / vel_norm, gate_normal) # max 1 when fully aligned
-        # #     alignment_reward = max(0, alignment)
-        # # else:
-        # #     alignment_reward = 0
-        
-        # # 4. Gate passing bonus - reward for passing through the gate
-        # passed_gate = np.linalg.norm(pos - gate_pos) < 0.05 and pos[1] <= way_point[1]  # Passed y of gate and close to gate
-        # if passed_gate:
-        #     reward = 10.0 
-        #     self.success_passed = True
-        #     return reward
-        
-        # # 5. Penalty for collision or going out of bounds
-        # out_of_bounds = abs(pos[0]) > 2.0 or abs(pos[1]) > 3.0 or pos[2] < 0.1 or pos[2] > 2.0
-        # if out_of_bounds:
-        #     reward = -10.0
-        #     return reward
-        
-        # # Total reward (can tune coefficients)
-        # reward = (
-        #     2.0 * distance_reward +      
-        #     1.0 * progress_reward       
-        # )
-        # return reward
     
     def _computeTruncated(self):
         """Compute the truncated flag for the current step.
@@ -222,12 +177,35 @@ class FlyThruGateAvitary(BaseRLAviary):
         if distance < 0.1:
             self.success_passed = True
             return True
+        center = self.GATE_POS + np.array([0.0, 0.0, 0.25])
+        dist = np.linalg.norm(state[0:3] - center)
+        if dist < 0.01:
+            self.center_gate_passed = True
         
         # Out of time termination
         if self.step_counter/self.PYB_FREQ > self.EPISODE_LEN_SEC:
             return True
         else:
             return False
+    
+    # For curriculum learning: adjust initial position based on curriculum level
+    def reset(self, seed=None, options=None):
+        if seed is not None:
+            super().reset(seed=seed)
+
+        if self.use_curriculum:
+            lvl = min(self.curriculum_level, self.max_curriculum_level)
+            gate = self.GATE_POS + np.array([0.0, 0.0, 0.5])
+            forward_offset = 0.1 + 0.15 * lvl
+            
+            # Generate noise for x-axis and y-axis 
+            x_noise = 0.1 * (np.random.rand() - 0.5)
+            z_noise = 0.1 * (np.random.rand() - 0.5)
+            
+            self.INIT_XYZS[0, :] = gate + np.array([x_noise, + forward_offset, z_noise]) 
+            self.INIT_RPYS[0, :] = np.array([0.0, 0.0, 0.0]) 
+
+        return super().reset(seed=seed, options=options)
     
     def _computeInfo(self):
         state = self._getDroneStateVector(0)

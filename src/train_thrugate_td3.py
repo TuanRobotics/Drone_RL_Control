@@ -84,8 +84,8 @@ def train_td3(num_episodes=20000,
     actor_losses = []
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_dir = "/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate"
-    save_dir = Path(base_dir) / "td3_training" / f"td3_{timestamp}"
+    base_dir = "/home/tuan/Desktop/drone_rl_control/log_dir"
+    save_dir = Path(base_dir) / "td3_training_thrugate" / f"td3_{timestamp}"
     save_dir.mkdir(parents=True, exist_ok=True)
     csv_prefix = Path(base_dir) / f"td3_metrics_{timestamp}"
 
@@ -134,8 +134,8 @@ def train_td3(num_episodes=20000,
         episode_rewards.append(episode_reward)
         avg_reward_100 = np.mean(episode_rewards[-100:])
 
-        # Save model every e5000 episodes
-        if episode % 5000 == 0 and episode > 0:
+        # Save model every 1000 episodes
+        if episode % 1000 == 0 and episode > 0:
             agent.save(os.path.join(save_dir, f"td3_model_ep{episode}.pt"))
             plot_training_curves(episode_rewards, eval_rewards, critic_losses,
                                  actor_losses, save_dir, episode)
@@ -253,5 +253,5 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
 
 
 if __name__ == '__main__':
-    train_td3(num_episodes=20000)
+    train_td3(num_episodes=10000)
 
