@@ -74,12 +74,14 @@ def train_td3_curriculum(num_episodes=20000,
     eval_rewards = []
     critic_losses = []
     actor_losses = []
+    curriculum_levels = []
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = "/home/tuan/Desktop/drone_rl_control/log_dir"
     save_dir = Path(base_dir) / "td3_training_thrugate_curriculum" / f"td3_{timestamp}"
     save_dir.mkdir(parents=True, exist_ok=True)
     csv_prefix = Path(base_dir) / f"td3_curriculum_metrics_{timestamp}"
+    curriculum_csv_path = f"{csv_prefix}_curriculum_levels.csv"
 
     print("\n" + "=" * 60)
     print("Starting TD3 Training with Curriculum for Drone Gate Navigation")
@@ -123,15 +125,17 @@ def train_td3_curriculum(num_episodes=20000,
         episode_rewards.append(episode_reward)
         avg_reward_100 = np.mean(episode_rewards[-100:])
 
-        success = getattr(env, "success_passed", False)
+        success = getattr(env, "center_gate_passed", False)
         success_history.append(1 if success else 0)
         _update_curriculum_on_rate(env, success_history,
                                    success_rate_threshold, success_window)
+        curriculum_levels.append(env.curriculum_level)
 
         if episode % 1000 == 0 and episode > 0:
             agent.save(os.path.join(save_dir, f"td3_model_ep{episode}.pt"))
             plot_training_curves(episode_rewards, eval_rewards, critic_losses,
                                  actor_losses, save_dir, episode)
+            plot_curriculum_levels(curriculum_levels, save_dir, f"ep{episode}")
 
         if (episode + 1) % 10 == 0:
             avg_reward_10 = np.mean(episode_rewards[-10:])
@@ -161,7 +165,9 @@ def train_td3_curriculum(num_episodes=20000,
     plot_training_curves(episode_rewards, eval_rewards, critic_losses,
                          actor_losses, save_dir, "final")
     save_metrics_to_csv(episode_rewards, eval_rewards, critic_losses,
-                        actor_losses, csv_prefix)
+                        actor_losses, curriculum_levels, csv_prefix,
+                        curriculum_csv_path)
+    plot_curriculum_levels(curriculum_levels, save_dir, "final")
 
     print(f"\nTraining completed! Final model saved in {save_dir}")
 
@@ -190,8 +196,9 @@ def evaluate_policy(env, agent, num_episodes=5):
 
 
 def save_metrics_to_csv(episode_rewards, eval_rewards, critic_losses,
-                        actor_losses, csv_prefix):
-    """Persist rewards and losses to CSV files inside src/."""
+                        actor_losses, curriculum_levels, csv_prefix,
+                        curriculum_csv_path):
+    """Persist rewards, losses, and curriculum levels to CSV files inside src/."""
     training_path = f"{csv_prefix}_training_rewards.csv"
     eval_path = f"{csv_prefix}_evaluation_rewards.csv"
     loss_path = f"{csv_prefix}_losses.csv"
@@ -210,6 +217,10 @@ def save_metrics_to_csv(episode_rewards, eval_rewards, critic_losses,
             critic = critic_losses[idx] if idx < len(critic_losses) else ""
             actor = actor_losses[idx] if idx < len(actor_losses) else ""
             f.write(f"{idx + 1},{critic},{actor}\n")
+
+    with open(curriculum_csv_path, "w", newline="") as f:
+        for idx, level in enumerate(curriculum_levels, start=1):
+            f.write(f"{idx},{level}\n")
 
 
 def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
@@ -257,6 +268,21 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
 
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, f'training_curves_ep{episode}.png'))
+    plt.close()
+
+
+def plot_curriculum_levels(curriculum_levels, save_dir, tag):
+    """Plot curriculum level progression."""
+    if not curriculum_levels:
+        return
+    plt.figure(figsize=(8, 4))
+    plt.plot(curriculum_levels, marker='o', alpha=0.8)
+    plt.xlabel('Episode')
+    plt.ylabel('Curriculum Level')
+    plt.title('Curriculum progression')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f'curriculum_levels_{tag}.png'))
     plt.close()
 
 

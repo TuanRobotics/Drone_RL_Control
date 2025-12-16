@@ -177,9 +177,11 @@ class FlyThruGateAvitary(BaseRLAviary):
         if distance < 0.1:
             self.success_passed = True
             return True
-        center = self.GATE_POS + np.array([0.0, 0.0, 0.25])
+        # Check if passed through center of gate
+        center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
+
         dist = np.linalg.norm(state[0:3] - center)
-        if dist < 0.01:
+        if dist < 0.15:
             self.center_gate_passed = True
         
         # Out of time termination
@@ -197,6 +199,8 @@ class FlyThruGateAvitary(BaseRLAviary):
             lvl = min(self.curriculum_level, self.max_curriculum_level)
             gate = self.GATE_POS + np.array([0.0, 0.0, 0.5])
             forward_offset = 0.1 + 0.15 * lvl
+            if lvl == self.max_curriculum_level:
+                forward_offset = 1.1  # At max level, start far away from gate
             
             # Generate noise for x-axis and y-axis 
             x_noise = 0.1 * (np.random.rand() - 0.5)

@@ -165,7 +165,7 @@ def test_agent(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251216_225357/td3_model_ep4000.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate/td3_20251216_135354/td3_model_final.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=5,
                        help='Number of test episodes')

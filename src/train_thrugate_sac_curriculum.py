@@ -83,10 +83,12 @@ def train_sac_curriculum(num_episodes=5000,
     q1_losses = []
     q2_losses = []
     policy_losses = []
+    curriculum_levels = []
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     save_dir = f"/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate_curriculum/sac_{timestamp}"
     os.makedirs(save_dir, exist_ok=True)
+    curriculum_csv_path = os.path.join(save_dir, "curriculum_levels.csv")
 
     total_steps = 0
     success_history = deque(maxlen=success_window)
@@ -137,11 +139,13 @@ def train_sac_curriculum(num_episodes=5000,
         success_history.append(1 if success else 0)
         _update_curriculum_on_rate(env, success_history,
                                    success_rate_threshold, success_window)
+        curriculum_levels.append(env.curriculum_level)
 
         if episode % 1000 == 0 and episode > 0:
             agent.save(os.path.join(save_dir, f"sac_model_ep{episode}.pt"))
             plot_training_curves(episode_rewards, eval_rewards, q1_losses,
                                  policy_losses, save_dir, episode)
+            plot_curriculum_levels(curriculum_levels, save_dir, f"ep{episode}")
 
         if (episode + 1) % 10 == 0:
             avg_reward_10 = np.mean(episode_rewards[-10:])
@@ -172,6 +176,8 @@ def train_sac_curriculum(num_episodes=5000,
     agent.save(os.path.join(save_dir, "sac_model_final.pt"))
     plot_training_curves(episode_rewards, eval_rewards, q1_losses,
                          policy_losses, save_dir, "final")
+    plot_curriculum_levels(curriculum_levels, save_dir, "final")
+    save_curriculum_levels(curriculum_levels, curriculum_csv_path)
 
     print(f"\nTraining completed! Final model saved in {save_dir}")
 
@@ -247,6 +253,28 @@ def plot_training_curves(episode_rewards, eval_rewards, q1_losses,
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, f'training_curves_ep{episode}.png'))
     plt.close()
+
+
+def plot_curriculum_levels(curriculum_levels, save_dir, tag):
+    """Plot curriculum level progression."""
+    if not curriculum_levels:
+        return
+    plt.figure(figsize=(8, 4))
+    plt.plot(curriculum_levels, marker='o', alpha=0.8)
+    plt.xlabel('Episode')
+    plt.ylabel('Curriculum Level')
+    plt.title('Curriculum progression')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f'curriculum_levels_{tag}.png'))
+    plt.close()
+
+
+def save_curriculum_levels(curriculum_levels, csv_path):
+    """Save curriculum level per episode to CSV."""
+    with open(csv_path, "w", newline="") as f:
+        for idx, level in enumerate(curriculum_levels, start=1):
+            f.write(f"{idx},{level}\n")
 
 
 if __name__ == "__main__":
