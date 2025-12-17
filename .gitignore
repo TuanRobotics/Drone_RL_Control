@@ -11,6 +11,8 @@ logs/
 # NumPy saves and videos
 tmp/
 
+.github/
+
 # Learning results
 experiments/learning/results/save-*
 

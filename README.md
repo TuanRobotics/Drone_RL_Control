@@ -50,11 +50,14 @@ python3 test_thrugate_<METHOD>.py --model_path <PATH_TO_MODEL> --use_curriculum 
 ## Demo Key Results
 This section summarizes the main training outcomes for the Go-Through Narrow Space task. We report results for PPO, TD3, SAC under the same environment settings, and additionally evaluate TD3 + Curriculum Learning and SAC + Curriculum Learning to measure how curriculum improves stability and time training. Qualitative results (GIF/videos) and quantitative plots (reward curves, success rate, episode length, etc.) are provided below.
 
-<p align="center">
-  <img src="./log_dir/sac_training_thrugate/sac_20251216_135343/training_curves_ep9000.png" width="32%">
-  <img src="./log_dir/td3_training_thrugate/td3_20251214_180916/training_curves_ep9000.png" width="32%">
-  <img src="./log_dir/ppo_training_thrugate/xxx.png" width="32%">
-</p>
+| SAC | TD3 | PPO |
+|---:|---:|---:|
+|<img src="./log_dir/sac_training_thrugate/sac_20251216_135343/training_curves_ep9000.png" width="250"> | <img src="./log_dir/td3_training_thrugate/td3_20251214_180916/training_curves_ep9000.png" width="250"> | <img src="./log_dir/ppo_training_thrugate/xxx.png" width="250"> |
+
+| SAC + Curriculum | TD3 + Curriculum |
+|---:|---:|
+| <img src="./log_dir/sac_training_thrugate_curriculum/sac_20251217_015457/training_curves_ep7000.png" width="300"> | <img src="./log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/training_curves_ep7000.png" width="300"> |
+
 
 ### Summary Table
 
