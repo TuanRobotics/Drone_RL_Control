@@ -58,6 +58,10 @@ This section summarizes the main training outcomes for the Go-Through Narrow Spa
 |---:|---:|
 | <img src="./log_dir/sac_training_thrugate_curriculum/sac_20251217_015457/training_curves_ep7000.png" width="300"> | <img src="./log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/training_curves_ep7000.png" width="300"> |
 
+| SAC | TD3 | PPO |
+|---:|---:|---:|
+| [<img src="./src/results/results_thrugate_sac/demo1.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate/demo1.gif" width="260">](./videos/demo2.mp4) | [<img src="./videos/demo3.png" width="260">](./videos/demo3.mp4) |
+
 
 ### Summary Table
 
@@ -69,8 +73,9 @@ This section summarizes the main training outcomes for the Go-Through Narrow Spa
 | TD3   | Yes        | XX%                      | XX                 | High              | Curriculum improves convergence & success consistency |
 | SAC   | Yes        | XX%                      | XX                 | Very High         | Best overall reliability under domain randomization |
 
+2.2. Project Structure
 
-## 5. Environment & Task Design
+<!-- ## 5. Environment & Task Design
 ### 5.1 Simulator/Framework
 + gym-pybullet-drones version, PyBullet, Python version
 + Observation type (kin), Action type (rpm)
@@ -90,5 +95,5 @@ Total: 3 + 3 + 3 + 3 + 3 + 4 = **19**
 + Saturation: [-1,1]
 ### Success / Termination
 + Termination: collision / out-of-bounds / time limit / success
-+ Success Metric: episode marked as success when drone passes the gate center region and reaches the final target within a tolerance.
++ Success Metric: episode marked as success when drone passes the gate center region and reaches the final target within a tolerance. -->
 
