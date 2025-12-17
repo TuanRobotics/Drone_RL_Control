@@ -93,7 +93,7 @@ class Critic(nn.Module):
         # Q1
         q1 = F.relu(self.fc1(sa))
         q1 = F.relu(self.fc2(q1))
-        q1 = self.fc3(q1)
+        q1 = self.fc3(q1) 
         
         # Q2
         q2 = F.relu(self.fc4(sa))
@@ -367,45 +367,3 @@ def create_td3_agent(state_dim, action_dim, **kwargs):
         action_size=action_dim,
         **kwargs
     )
-
-# # ============================================================================
-# # Example usage
-# # ============================================================================
-# if __name__ == "__main__":
-#     print("Testing TD3 Agent...")
-    
-#     # Create agent
-#     agent = TD3Agent(
-#         Actor,
-#         Critic,
-#         state_size=12,
-#         action_size=4,
-#         clip_low=-1,
-#         clip_high=1
-#     )
-    
-#     print(f"\nAgent created successfully!")
-#     print(f"State size: {agent.state_size}")
-#     print(f"Action size: {agent.action_size}")
-#     print(f"Device: {device}")
-    
-#     # Test action selection
-#     dummy_state = np.random.randn(12)
-#     action = agent.get_action(dummy_state, explore=True)
-#     print(f"\nTest action (with exploration): {action}")
-#     print(f"Action shape: {action.shape}")
-    
-#     action_eval = agent.get_action(dummy_state, explore=False)
-#     print(f"Test action (without exploration): {action_eval}")
-    
-#     # Test memory operations
-#     agent.memory.add(
-#         dummy_state,
-#         action,
-#         1.0,
-#         np.random.randn(12),
-#         False
-#     )
-#     print(f"\nMemory size: {len(agent.memory)}")
-    
-#     print("\n✓ All tests passed!")

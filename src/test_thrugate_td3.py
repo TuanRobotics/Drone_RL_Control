@@ -51,7 +51,9 @@ def test_agent(args):
                            obs=DEFAULT_OBS,
                            act=DEFAULT_ACT,
                            record=DEFAULT_RECORD_VIDEO,
-                           output_folder=DEFAULT_OUTPUT_FOLDER)
+                           output_folder=DEFAULT_OUTPUT_FOLDER,
+                           use_curriculum=True,
+                           curriculum_level=5)
 
     obs, info = env.reset()
     state_dim = int(np.prod(env.observation_space.shape))
@@ -93,6 +95,7 @@ def test_agent(args):
     test_lengths = []
     success_count = 0
     success_times = []
+    center_times = []
 
     for ep in range(total_test_episodes):
         obs, info = env.reset(seed=42 + ep, options={})
@@ -100,6 +103,7 @@ def test_agent(args):
         ep_len = 0
         start = time.time()
         env.success_passed = False
+        center_time = None
 
         for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
             action = agent.get_action(obs, explore=False)
@@ -107,23 +111,27 @@ def test_agent(args):
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
             ep_len += 1
+            if center_time is None and getattr(env, "center_gate_passed", False):
+                center_time = ep_len / env.CTRL_FREQ
             env.render()
             sync(i, start, env.CTRL_TIMESTEP)
             if terminated or truncated:
-                # If success, the inside env will have env.success_passed = True
-                if env.success_passed:
+                # Success is when the drone passes the gate center
+                if center_time is not None:
                     success_count += 1
-                    success_times.append(ep_len / env.CTRL_FREQ)
+                    success_times.append(center_time)
                 break
         test_rewards.append(ep_reward)
         test_lengths.append(ep_len)
-        print(f"Episode {ep+1}/10 | Reward {ep_reward:.2f} | Len {ep_len} | Success {'✓' if env.success_passed else '✗'}")
+        center_times.append(center_time)
+        center_str = f"{center_time:.2f}s" if center_time is not None else "-"
+        print(f"Episode {ep+1}/{total_test_episodes} | Reward {ep_reward:.2f} | Len {ep_len} | Center {center_str} | Success {'✓' if center_time is not None else '✗'}")
 
     print(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}")
-    print(f"Success rate: {success_count}/10 ({100*success_count/10:.1f}%)")
+    print(f"Success rate: {success_count}/{total_test_episodes} ({100*success_count/total_test_episodes:.1f}%)")
     if success_times:
-        print(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
-        print(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s")
+        print(f"Avg center-pass time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
+        print(f"Best center: {np.min(success_times):.2f}s | Worst center: {np.max(success_times):.2f}s")
 
     print("========== TESTING COMPLETED ==========")
     env.close()
@@ -139,6 +147,9 @@ def test_agent(args):
     print(f"Average Length:        {np.mean(test_lengths):.2f}")
     print(f"Success Rate:          {success_count}/{total_test_episodes} "
           f"({100 * success_count / total_test_episodes:.1f}%)")
+    if success_times:
+        print(f"Avg center-pass time:  {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
+        print(f"Best/Worst center:     {np.min(success_times):.2f}s / {np.max(success_times):.2f}s")
     print("=" * 88)
 
     # Save summary
@@ -152,24 +163,24 @@ def test_agent(args):
         f.write(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}\n")
         f.write(f"Success rate: {success_count}/{total_test_episodes} ({100*success_count/total_test_episodes:.1f}%)\n")
         if success_times:
-            f.write(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s\n")
-            f.write(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s\n")
+            f.write(f"Avg center-pass time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s\n")
+            f.write(f"Best center: {np.min(success_times):.2f}s | Worst center: {np.max(success_times):.2f}s\n")
         f.write("\nEpisode details:\n")
         for idx, (r, l) in enumerate(zip(test_rewards, test_lengths)):
             f.write(f"Ep {idx+1}: reward={r:.2f}, len={l}")
-            if r > 5:
-                f.write(f", success_time={l/env.CTRL_FREQ:.2f}s")
+            if idx < len(center_times) and center_times[idx] is not None:
+                f.write(f", center_time={center_times[idx]:.2f}s")
             f.write("\n")
         if success_times:
-            f.write("\nSuccess times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
+            f.write("\nCenter pass times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/td3_model_ep7000.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251217_161813/td3_model_ep5000.pt',
                        help='Path to the trained model checkpoint')
-    parser.add_argument('--episodes', type=int, default=5,
+    parser.add_argument('--episodes', type=int, default=10,
                        help='Number of test episodes')
     parser.add_argument('--record', type=bool, default=True,
                        help='Record video of the test')

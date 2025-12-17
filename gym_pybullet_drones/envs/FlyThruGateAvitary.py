@@ -62,13 +62,14 @@ class FlyThruGateAvitary(BaseRLAviary):
         self.max_curriculum_level = max_curriculum_level
 
         self.GATE_POS = np.array([0, -1.0, 0.0])  # Center of gate
-        self.FINAL_TARGET = np.array([0, -1.5, 0.225]) # Final target position after gate
+        self.FINAL_TARGET = np.array([0, -1.6, 0.25]) # Final target position after gate
         self.passed_gate = False  # Flag for track if gate is passed
         self.GATE_ORN = None
 
         self.success_passed = False
         self.center_gate_passed = False
         self.time_passed_gate = 0.0
+        self.threshold_success = 0.15  # Distance threshold to consider gate passed
 
         super().__init__(
             drone_model=drone_model,
@@ -167,14 +168,21 @@ class FlyThruGateAvitary(BaseRLAviary):
         # """Reward for gate navigation task"""
         state = self._getDroneStateVector(0)
         norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
-        if np.linalg.norm(state[0:3] - self.FINAL_TARGET) < 0.1:
-            reward = 5.0
-        else: 
-            reward = 0.0
-            
-        return max (0, 2*(1 - np.linalg.norm(np.array([0, -1.5*norm_ep_time, 0.225])-state[0:3]))) + reward
 
-    
+        # Base reward: encourage forward movement towards gate
+        center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
+        distance = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
+
+        dist = np.linalg.norm(state[0:3] - center)
+        if dist < self.threshold_success:
+            self.center_gate_passed = True
+
+        if distance < self.threshold_success and self.center_gate_passed: # Close to final target and beyond gate y position
+            self.center_gate_passed = True
+            return 10.0  # Success reward
+            
+        return max (0, (1 - np.linalg.norm(np.array([0, -1.5*norm_ep_time, 0.225])-state[0:3])))
+
     def _computeTruncated(self):
         """Compute the truncated flag for the current step.
 
@@ -205,20 +213,16 @@ class FlyThruGateAvitary(BaseRLAviary):
         """
         # Success condition: passed through the gate and close to final target
         state = self._getDroneStateVector(0)
-        distance = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
-        # Success condition: close to final target
-        # if distance < 0.15:
-        #     self.success_passed = True
-        #     return True
-        # Check if passed through center of gate 
+
         center = self.GATE_POS + np.array([0.0, -0.1, 0.225])
-        dist = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
-        if dist < 0.1 and state[1] < center[1] and self.center_gate_passed: # Close to final target and beyond gate y position
+        distance = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
+
+        if distance < 0.1 and self.center_gate_passed: # Close to final target and beyond gate y position
             self.center_gate_passed = True
             return True
 
         dist = np.linalg.norm(state[0:3] - center)
-        if dist < 0.12:
+        if dist < 0.15:
             self.center_gate_passed = True
 
         # Out of time termination
@@ -240,37 +244,48 @@ class FlyThruGateAvitary(BaseRLAviary):
 
         if self.use_curriculum:
             lvl = min(self.curriculum_level, self.max_curriculum_level)
-            gate_center = self.GATE_POS + np.array([0.0, -0.15, 0.25])
+            gate_center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
 
             # Clear curriculum structure
             if lvl == 0:
                 # Level 0: Near the gate, no noise
-                forward_offset = 0.15
-                lateral_noise = 0.0
-                vertical_noise = 0.0
+                self.threshold_success = 0.17
+                forward_offset = 0.2
+                lateral_noise = 0.01 * (np.random.rand() - 0.5)
+                vertical_noise = 0.01 * (np.random.rand() - 0.5)
+                self.INIT_RPYS[0, 2] = 0.0
             elif lvl == 1:
                 # Level 1: Near the gate, small noise
                 forward_offset = 0.3
                 lateral_noise = 0.05 * (np.random.rand() - 0.5)
                 vertical_noise = 0.05 * (np.random.rand() - 0.5)
+                self.INIT_RPYS[0, 2] = 0.0
+                self.threshold_success = 0.15
             elif lvl == 2:
                 forward_offset = 0.5
-                lateral_noise = 0.1 * (np.random.rand() - 0.5)
-                vertical_noise = 0.1 * (np.random.rand() - 0.5)
+                lateral_noise = 0.05 * (np.random.rand() - 0.5)
+                vertical_noise = 0.05 * (np.random.rand() - 0.5)
+                self.INIT_RPYS[0, 2] = 0.0
+                self.threshold_success = 0.13
             elif lvl == 3:
                 forward_offset = 0.8
-                lateral_noise = 0.15 * (np.random.rand() - 0.5)
-                vertical_noise = 0.15 * (np.random.rand() - 0.5)
+                lateral_noise = 0.1 * (np.random.rand() - 0.5)
+                vertical_noise = 0.1 * (np.random.rand() - 0.5)
+                self.INIT_RPYS[0, 2] = 0.0
+                self.threshold_success = 0.11
             elif lvl == 4:
-                forward_offset = 1.1
-                lateral_noise = 0.2 * (np.random.rand() - 0.5)
-                vertical_noise = 0.2 * (np.random.rand() - 0.5)
-            else:  # lvl >= 5 (max)
-                forward_offset = 1.5
-                lateral_noise = 0.25 * (np.random.rand() - 0.5)
-                vertical_noise = 0.25 * (np.random.rand() - 0.5)
+                forward_offset = 1.0
+                lateral_noise = 0.1 * (np.random.rand() - 0.5)
+                vertical_noise = 0.1 * (np.random.rand() - 0.5)
+                self.INIT_RPYS[0, 2] = 0.0
+                self.threshold_success = 0.1
+            else:  # lvl >= 5 (max) - comment for testing without curriculum
+                forward_offset = 1.2
+                lateral_noise = 0.1 # 0.5 * (np.random.rand() - 0.5)
+                vertical_noise = 0.1 #0.5 * (np.random.rand() - 0.5)
+                self.threshold_success = 0.08
                 # Can add random yaw orientation
-                self.INIT_RPYS[0, 2] = 0.2 * (np.random.rand() - 0.5)
+                self.INIT_RPYS[0, 2] = 0.2 # 0.2 * (np.random.rand() - 0.5)
             
             self.INIT_XYZS[0, :] = gate_center + np.array([
                 lateral_noise, 

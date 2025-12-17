@@ -49,7 +49,7 @@ def train_sac_curriculum(num_episodes=5000,
                          update_after=1000,
                          update_every=50,
                          save_every=100,
-                         eval_every=50,
+                         eval_every=100,
                          num_eval_episodes=5,
                          curriculum_start_level=0,
                          max_curriculum_level=5,
@@ -292,7 +292,7 @@ if __name__ == "__main__":
         curriculum_start_level=0,
         max_curriculum_level=5,
         success_window=30,
-        success_rate_threshold=0.85,
+        success_rate_threshold=0.75,
         gui=False
     )
 

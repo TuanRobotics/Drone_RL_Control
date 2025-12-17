@@ -12,7 +12,7 @@ from agents.ppo_agent import PPO
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.envs.HoverAviary import HoverAviary
 from gym_pybullet_drones.envs.MultiHoverAviary import MultiHoverAviary
-from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
+from gym_pybullet_drones.envs.FlyThrugateNewAviary import FlyThrugateNewAviary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
@@ -63,15 +63,17 @@ def test(args):
         print(filename)
         os.makedirs(filename+'/')
     
-    env = FlyThruGateAvitary(gui=DEFAULT_GUI,
+    
+    env = FlyThrugateNewAviary(gui=DEFAULT_GUI,
                          obs=DEFAULT_OBS,
                          act=DEFAULT_ACT,
                          record=DEFAULT_RECORD_VIDEO,
-                         output_folder=DEFAULT_OUTPUT_FOLDER
+                         output_folder=DEFAULT_OUTPUT_FOLDER,
+                         use_curriculum=False
                          )
 
     # state space dimension
-    state_dim = 16
+    state_dim = 12 # 19 if using curriculum 
     # action space dimension
     action_dim = 4
 
@@ -98,34 +100,41 @@ def test(args):
     lengths = []
     successes = 0
     success_times = []
+    center_times = []
 
     for ep in range(total_test_episodes):
         obs, info = env.reset(seed=42 + ep, options={})
         ep_reward = 0
         ep_len = 0
         start = time.time()
+        center_time = None
         for i in range((env.EPISODE_LEN_SEC+20)*env.CTRL_FREQ):
             action = ppo_agent.select_action(obs)
             action = _reshape_action_for_env(action, env.action_space)
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
             ep_len += 1
+            if center_time is None and getattr(env, "center_gate_passed", False):
+                center_time = ep_len / env.CTRL_FREQ
             if render:
                 env.render()
                 sync(i, start, env.CTRL_TIMESTEP)
             if terminated or truncated:
-                if ep_reward > 10:
+                if center_time is not None:
                     successes += 1
-                    success_times.append(ep_len / env.CTRL_FREQ)
-                    print(f"Episode {ep+1} succeeded in {ep_len/env.CTRL_FREQ:.2f} seconds.")
+                    success_times.append(center_time)
+                    print(f"Episode {ep+1} passed gate center in {center_time:.2f} seconds.")
                 break
         rewards.append(ep_reward)
         lengths.append(ep_len)
+        center_times.append(center_time)
+        center_str = f"{center_time:.2f}s" if center_time is not None else "-"
         ppo_agent.buffer.clear()
         print(f"Episode {ep+1}/{total_test_episodes} | "
               f"Reward {ep_reward:.2f} | "
               f"Len {ep_len} | "
-              f"Success {'✓' if ep_reward>5 else '✗'}")
+              f"Center {center_str} | "
+              f"Success {'✓' if center_time is not None else '✗'}")
 
     env.close()
     # Summary
@@ -133,8 +142,8 @@ def test(args):
     print(f"Avg reward: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}")
     print(f"Success rate: {successes}/{total_test_episodes} ({100*successes/total_test_episodes:.1f}%)")
     if success_times:
-        print(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
-        print(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s")
+        print(f"Avg center-pass time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
+        print(f"Best center: {np.min(success_times):.2f}s | Worst center: {np.max(success_times):.2f}s")
 
     # Save summary
     out_dir = os.path.join(DEFAULT_OUTPUT_FOLDER, "test_summary")
@@ -147,21 +156,21 @@ def test(args):
         f.write(f"Avg reward: {np.mean(rewards):.2f} ± {np.std(rewards):.2f}\n")
         f.write(f"Success rate: {successes}/{total_test_episodes} ({100*successes/total_test_episodes:.1f}%)\n")
         if success_times:
-            f.write(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s\n")
-            f.write(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s\n")
+            f.write(f"Avg center-pass time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s\n")
+            f.write(f"Best center: {np.min(success_times):.2f}s | Worst center: {np.max(success_times):.2f}s\n")
         f.write("\nEpisode details:\n")
         for idx, (r, l) in enumerate(zip(rewards, lengths)):
             f.write(f"Ep {idx+1}: reward={r:.2f}, len={l}")
-            if r > 5:
-                f.write(f", success_time={l/env.CTRL_FREQ:.2f}s")
+            if idx < len(center_times) and center_times[idx] is not None:
+                f.write(f", center_time={center_times[idx]:.2f}s")
             f.write("\n")
         if success_times:
-            f.write("\nSuccess times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
+            f.write("\nCenter pass times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test PPO agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251217_100841/ppo_model_ep23481.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251217_135727/ppo_model_ep24864.pt',
                        help='Path to the trained model checkpoint')
 
     args = parser.parse_args()

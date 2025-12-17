@@ -40,7 +40,7 @@ def _update_curriculum_on_rate(env, success_history, success_rate_threshold,
 def train_td3_curriculum(num_episodes=20000,
                          learn_every=1,
                          warmup_steps=10000,
-                         eval_every=50,
+                         eval_every=100,
                          num_eval_episodes=5,
                          curriculum_start_level=0,
                          max_curriculum_level=5,
@@ -126,7 +126,7 @@ def train_td3_curriculum(num_episodes=20000,
         avg_reward_100 = np.mean(episode_rewards[-100:])
 
         success = getattr(env, "center_gate_passed", False)
-        
+
         success_history.append(1 if success else 0)
         _update_curriculum_on_rate(env, success_history,
                                    success_rate_threshold, success_window)

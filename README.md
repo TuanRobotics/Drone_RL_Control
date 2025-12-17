@@ -1,12 +1,44 @@
 # Learning Agile Quadrotor Flight: ​Narrow-Gate Passing 
-- Train SAC/TD3/PPO to fly through a narrow gate using state observations, reward shaping + curriculum learning.
-- Goal: Navigate the drone through a narrow gate/space and reach the terminal region reliably.
+
+- Benchmark SAC / TD3 / PPO under sparse reward vs. reward shaping, with/without curriculum learning.
+- Objective: Reliable gate passage → terminal region, measured by success rate, completion time, and stability.
+
+# Motivation: 
+
 ## Participants
 - Dinh Ngoc Tuan, 291184
 - Nguyen Thai Son, 291124
 
 ## **Description of the Conducted Research**
-- Very important
+- **Problem formulation:** State-based narrow-gate navigation (no vision) with direct RPM control.  
+- **Reward design:** Sparse success reward with dense shaping terms. 
+- **Curriculum design:** Reverse curriculum (difficulty scheduling) to gradually expand the initial-state distribution.  
+- **Ablation evidence:** Compare shaping vs. shaping + curriculum → improved sample efficiency (earlier performance gains) and more stable training. 
+- **Algorithm comparison:** Off-policy methods (TD3, SAC) achieve better stability and final performance than PPO in narrow-space navigation.
+
+### New reward function
+
+Flag through gate:
+
+$$
+c_t =
+\begin{cases}
+1, & \lVert p_t - p_g \rVert < \varepsilon \\
+c_{t-1}, & \text{otherwise}
+\end{cases}
+$$
+
+Reward function:
+
+$$
+r_t =
+\begin{cases}
+10, & \big(\lVert p_t - p_f \rVert < \varepsilon\big)\ \land\ (c_t = 1) \\
+\max\!\left(0,\ 1 - \left\lVert p_t - p_{\mathrm{ref}}(\tau_t)\right\rVert\right), & \text{otherwise}
+\end{cases}
+$$
+
+
 
 ## Installation and Deployment
 + OS: Ubuntu 22.04 / 24.04 (recommended)
@@ -52,48 +84,41 @@ This section summarizes the main training outcomes for the Go-Through Narrow Spa
 
 | SAC | TD3 | PPO |
 |---:|---:|---:|
-|<img src="./log_dir/sac_training_thrugate/sac_20251216_135343/training_curves_ep9000.png" width="250"> | <img src="./log_dir/td3_training_thrugate/td3_20251214_180916/training_curves_ep9000.png" width="250"> | <img src="./log_dir/ppo_training_thrugate/xxx.png" width="250"> |
+|<img src="./log_dir/sac_training_thrugate/sac_20251216_135343/training_curves_ep9000.png" width="250"> | <img src="./log_dir/td3_training_thrugate/td3_20251214_180916/training_curves_ep9000.png" width="250"> | <img src="./log_dir/ppo_training_thrugate/ppo_20251217_135727/plots/ppo_rewards_ep24865.png" width="300"> |
 
 | SAC + Curriculum | TD3 + Curriculum |
 |---:|---:|
-| <img src="./log_dir/sac_training_thrugate_curriculum/sac_20251217_015457/training_curves_ep7000.png" width="300"> | <img src="./log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/training_curves_ep7000.png" width="300"> |
+| <img src="./log_dir/sac_training_thrugate_curriculum/sac_20251217_200922/training_curves_ep5000.png" width="300"> | <img src="./log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/training_curves_ep7000.png" width="300"> |
 
 | SAC | TD3 | PPO |
 |---:|---:|---:|
 | [<img src="./src/results/results_thrugate_sac/demo1.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate/demo1.gif" width="260">](./videos/demo2.mp4) | [<img src="./videos/demo3.png" width="260">](./videos/demo3.mp4) |
 
 
-### Summary Table
+| SAC Curriculum | TD3 Curriculum |
+|---:|---:|
+| [<img src="./src/results/results_thrugate_sac/demo1.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate/demo1.gif" width="260">](./videos/demo2.mp4)
 
+### Summary Table
+<!-- 
 | Method | Curriculum | Best Success Rate (Eval) | Avg. Return (Eval) | Stability (Qual.) | Notes |
 |:------|:----------:|:------------------------:|:------------------:|:-----------------:|:------|
 | PPO   | No         | XX%                      | XX                 | Medium            | Fast training; can be sensitive to reward shaping |
 | TD3   | No         | XX%                      | XX                 | Medium–High        | Strong continuous-control baseline |
 | SAC   | No         | XX%                      | XX                 | High              | Robust exploration, stable learning curves |
 | TD3   | Yes        | XX%                      | XX                 | High              | Curriculum improves convergence & success consistency |
-| SAC   | Yes        | XX%                      | XX                 | Very High         | Best overall reliability under domain randomization |
+| SAC   | Yes        | XX%                      | XX                 | Very High         | Best overall reliability under domain randomization | -->
 
-2.2. Project Structure
+### References
+[1] Panerati et al., “Learning to Fly—A Gym Environment with PyBullet Physics”, arXiv 2021
 
-<!-- ## 5. Environment & Task Design
-### 5.1 Simulator/Framework
-+ gym-pybullet-drones version, PyBullet, Python version
-+ Observation type (kin), Action type (rpm)
+[2] W. Xin, Y. Chen, and W. Zhu, “A Survey on Curriculum Learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence, vol. 44, no. 9, pp. 4555–4576, 2022, doi: 10.1109/TPAMI.2021.3069908​
 
-### State/Observation Space
-- `p = (x, y, z)` : drone position (3)
-- `v = (vx, vy, vz)` : linear velocity (3)
-- `rpy = (roll, pitch, yaw)` : attitude (3)
-- `ω = (wx, wy, wz)` : angular velocity (3)
-- `Δp_gate = p - p_gate_center` : relative position to gate center (3)
-- `g_ori` : gate orientation encoding (4)  ← (example: quaternion or normal+yaw)
-Total: 3 + 3 + 3 + 3 + 3 + 4 = **19**
+[3] D. Falanga, E. Müggler, M. Fässler, and D. Scaramuzza, “Aggressive quadrotor flight through narrow gaps with onboard sensing and computing using active vision,” in Proc. 2017 IEEE Int. Conf. on Robotics and Automation (ICRA), Singapore, 2017, pp. 1–8, doi: 10.1109/ICRA.2017.7989679.
 
+[4] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, “Proximal Policy Optimization Algorithms,” arXiv preprint arXiv:1707.06347, 2017.
 
-### Action Space
-+ Action Space: RPM
-+ Saturation: [-1,1]
-### Success / Termination
-+ Termination: collision / out-of-bounds / time limit / success
-+ Success Metric: episode marked as success when drone passes the gate center region and reaches the final target within a tolerance. -->
+[5] T. Haarnoja, A. Zhou, P. Abbeel, and S. Levine, “Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor,” in Proc. ICML (PMLR), vol. 80, 2018. (arXiv:1801.01290)
+
+[6] S. Fujimoto, H. van Hoof, and D. Meger, “Addressing Function Approximation Error in Actor-Critic Methods,” in Proc. ICML (PMLR), vol. 80, 2018. (arXiv:1802.09477)
 

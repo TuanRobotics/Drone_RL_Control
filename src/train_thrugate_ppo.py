@@ -247,7 +247,7 @@ from pathlib import Path
 
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.envs.HoverAviary import HoverAviary
-from gym_pybullet_drones.envs.FlyThrugateNewAviary import FlyThrugateNewAviary
+from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
 from gym_pybullet_drones.envs.MultiHoverAviary import MultiHoverAviary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
@@ -262,14 +262,14 @@ def train():
     DEFAULT_ACT = ActionType('rpm') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
 
 
-    env = FlyThrugateNewAviary(obs=DEFAULT_OBS, act=DEFAULT_ACT)
+    env = FlyThruGateAvitary(obs=DEFAULT_OBS, act=DEFAULT_ACT)
     # init agent
-    state_dim = 12
+    state_dim = 16
     action_dim = 4
     action_std = 0.6                    # starting std for action distribution (Multivariate Normal)
-    action_std_decay_rate = 0.05        # linearly decay action_std (action_std = action_std - action_std_decay_rate)
+    action_std_decay_rate = 0.05       # linearly decay action_std (action_std = action_std - action_std_decay_rate)
     min_action_std = 0.1                # minimum action_std (stop decay after action_std <= min_action_std)
-    action_std_decay_freq = int(2.5e5)  # action_std decay frequency (in num timesteps)
+    action_std_decay_freq = int(3e5)  # action_std decay frequency (in num timesteps)
     #####################################################
 
     ################ PPO hyperparameters ################
@@ -279,8 +279,8 @@ def train():
 
     eps_clip = 0.2          # clip parameter for PPO
     gamma = 0.99            # discount factor
-    lr_actor = 0.0003       # learning rate for actor network
-    lr_critic = 0.001       # learning rate for critic network
+    lr_actor = 3e-4         # learning rate for actor network
+    lr_critic = 1e-3       # learning rate for critic network
 
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -404,14 +404,15 @@ def train():
         episode_rewards.append(current_ep_reward)
 
         i_episode += 1
-        if i_episode % 5000 == 0:
+        if i_episode % 2400 == 0:
             save_reward_plot(i_episode)
+
 
 
     log_f.close()
     env.close()
 
-
+    ppo_agent.save(save_dir / f"ppo_model_final.pt")
 
     # print total training time
     print("============================================================================================")
@@ -420,7 +421,7 @@ def train():
     print("Finished training at (GMT) : ", end_time)
     print("Total training time  : ", end_time - start_time)
     print("============================================================================================")
-
+    
     if episode_rewards:
         save_reward_plot(i_episode)
 

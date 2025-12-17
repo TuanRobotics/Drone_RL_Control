@@ -1,12 +1,21 @@
 TD3 FlyThruGateAvitary Test Results
-Checkpoint: /home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/td3_model_ep7000.pt
-Episodes: 5
-Avg reward: 1000.46 ± 0.00
-Success rate: 0/5 (0.0%)
+Checkpoint: /home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251217_161813/td3_model_ep5000.pt
+Episodes: 10
+Avg reward: 154.42 ± 0.00
+Success rate: 10/10 (100.0%)
+Avg center-pass time: 2.07s ± 0.00s
+Best center: 2.07s | Worst center: 2.07s
 
 Episode details:
-Ep 1: reward=1000.46, len=242, success_time=8.07s
-Ep 2: reward=1000.46, len=242, success_time=8.07s
-Ep 3: reward=1000.46, len=242, success_time=8.07s
-Ep 4: reward=1000.46, len=242, success_time=8.07s
-Ep 5: reward=1000.46, len=242, success_time=8.07s
+Ep 1: reward=154.42, len=242, center_time=2.07s
+Ep 2: reward=154.42, len=242, center_time=2.07s
+Ep 3: reward=154.42, len=242, center_time=2.07s
+Ep 4: reward=154.42, len=242, center_time=2.07s
+Ep 5: reward=154.42, len=242, center_time=2.07s
+Ep 6: reward=154.42, len=242, center_time=2.07s
+Ep 7: reward=154.42, len=242, center_time=2.07s
+Ep 8: reward=154.42, len=242, center_time=2.07s
+Ep 9: reward=154.42, len=242, center_time=2.07s
+Ep 10: reward=154.42, len=242, center_time=2.07s
+
+Center pass times (s): 2.07, 2.07, 2.07, 2.07, 2.07, 2.07, 2.07, 2.07, 2.07, 2.07

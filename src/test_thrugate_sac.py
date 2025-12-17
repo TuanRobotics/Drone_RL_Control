@@ -61,7 +61,9 @@ def test(args):
         record=DEFAULT_RECORD_VIDEO,
         obs=DEFAULT_OBS,
         act=DEFAULT_ACT,
-        output_folder=DEFAULT_OUTPUT_FOLDER
+        output_folder=DEFAULT_OUTPUT_FOLDER,
+        use_curriculum=args.curriculum,
+        curriculum_level=5
     )
 
     # Get state and action dimensions
@@ -95,6 +97,7 @@ def test(args):
     test_lengths = []
     success_count = 0
     success_times = []
+    center_times = []
 
     print(f"\nStarting test for {total_test_episodes} episodes...")
     print("=" * 60)
@@ -104,6 +107,7 @@ def test(args):
         ep_reward = 0
         ep_length = 0
         start = time.time()
+        center_time = None
 
         # Run episode
         max_steps = (env.EPISODE_LEN_SEC + 30) * env.CTRL_FREQ
@@ -115,6 +119,8 @@ def test(args):
             obs, reward, terminated, truncated, info = env.step(action)
             ep_reward += reward
             ep_length += 1
+            if center_time is None and getattr(env, "center_gate_passed", False):
+                center_time = ep_length / env.CTRL_FREQ
 
             # Render if GUI is enabled
             if DEFAULT_GUI:
@@ -123,21 +129,24 @@ def test(args):
 
             # Check if episode is done
             if terminated or truncated:
-                # Check if drone passed the gate (reward > 5 means successful)
-                if ep_reward > 10:
+                # Success is when the drone passes the gate center
+                if center_time is not None:
                     success_count += 1
-                    success_times.append(ep_length / env.CTRL_FREQ) 
-                    print(f"Episode {episode + 1} succeeded in {ep_length/env.CTRL_FREQ:.2f} seconds.")
+                    success_times.append(center_time)
+                    print(f"Episode {episode + 1} passed gate center in {center_time:.2f} seconds.")
                 break
         # Store episode statistics
         test_rewards.append(ep_reward)
         test_lengths.append(ep_length)
+        center_times.append(center_time)
 
         # Print episode results
+        center_str = f"{center_time:.2f}s" if center_time is not None else "-"
         print(f'Episode {episode + 1}/{total_test_episodes} | '
               f'Reward: {ep_reward:7.2f} | '
               f'Length: {ep_length:4d} | '
-              f'Success: {"✓" if ep_reward > 5 else "✗"}')
+              f'Center: {center_str} | '
+              f'Success: {"✓" if center_time is not None else "✗"}')
 
     env.close()
 
@@ -152,6 +161,9 @@ def test(args):
     print(f"Average Length:        {np.mean(test_lengths):.2f}")
     print(f"Success Rate:          {success_count}/{total_test_episodes} "
           f"({100 * success_count / total_test_episodes:.1f}%)")
+    if success_times:
+        print(f"Avg center-pass time:  {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s")
+        print(f"Best/Worst center:     {np.min(success_times):.2f}s / {np.max(success_times):.2f}s")
     print("=" * 88)
 
     # Save summary
@@ -165,16 +177,16 @@ def test(args):
         f.write(f"Avg reward: {np.mean(test_rewards):.2f} ± {np.std(test_rewards):.2f}\n")
         f.write(f"Success rate: {success_count}/{total_test_episodes} ({100*success_count/total_test_episodes:.1f}%)\n")
         if success_times:
-            f.write(f"Avg success time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s\n")
-            f.write(f"Best: {np.min(success_times):.2f}s | Worst: {np.max(success_times):.2f}s\n")
+            f.write(f"Avg center-pass time: {np.mean(success_times):.2f}s ± {np.std(success_times):.2f}s\n")
+            f.write(f"Best center: {np.min(success_times):.2f}s | Worst center: {np.max(success_times):.2f}s\n")
         f.write("\nEpisode details:\n")
         for idx, (r, l) in enumerate(zip(test_rewards, test_lengths)):
             f.write(f"Ep {idx+1}: reward={r:.2f}, len={l}")
-            if r > 5:
-                f.write(f", success_time={l/env.CTRL_FREQ:.2f}s")
+            if idx < len(center_times) and center_times[idx] is not None:
+                f.write(f", center_time={center_times[idx]:.2f}s")
             f.write("\n")
         if success_times:
-            f.write("\nSuccess times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
+            f.write("\nCenter pass times (s): " + ", ".join(f"{t:.2f}" for t in success_times) + "\n")
 
 
 
@@ -185,14 +197,15 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test SAC agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate_curriculum/sac_20251217_142454/sac_model_ep4000.pt',
+                        # /home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate_curriculum/sac_20251217_200922/sac_model_ep5000.pt
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate_curriculum/sac_20251217_200922/sac_model_ep5000.pt',
                        help='Path to the trained model checkpoint')
-    parser.add_argument('--episodes', type=int, default=5,
+    parser.add_argument('--episodes', type=int, default=10,
                        help='Number of test episodes')
     parser.add_argument('--record', type=bool, default=True,
                        help='Record video of the test')
     parser.add_argument('--gui', type=bool, default=True,
-                       help='Enable GUI visualization')
+                       help='Enable GUI visualization') 
     parser.add_argument('--curriculum', type=bool, default=True,
                        help='Use curriculum learning during testing')
 
