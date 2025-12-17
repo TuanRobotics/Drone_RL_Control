@@ -45,7 +45,7 @@ def train_td3_curriculum(num_episodes=20000,
                          curriculum_start_level=0,
                          max_curriculum_level=5,
                          success_window=30,
-                         success_rate_threshold=0.5,
+                         success_rate_threshold=0.8,
                          gui=False):
     """Train TD3 agent with curriculum-enabled FlyThruGateAvitary."""
     env = FlyThruGateAvitary(obs=ObservationType.KIN,
@@ -126,6 +126,7 @@ def train_td3_curriculum(num_episodes=20000,
         avg_reward_100 = np.mean(episode_rewards[-100:])
 
         success = getattr(env, "center_gate_passed", False)
+        
         success_history.append(1 if success else 0)
         _update_curriculum_on_rate(env, success_history,
                                    success_rate_threshold, success_window)
@@ -294,5 +295,5 @@ if __name__ == '__main__':
                          curriculum_start_level=0,
                          max_curriculum_level=5,
                          success_window=30,
-                         success_rate_threshold=0.7,
+                         success_rate_threshold=0.85,
                          gui=False)

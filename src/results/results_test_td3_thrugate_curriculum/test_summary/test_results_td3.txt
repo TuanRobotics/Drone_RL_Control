@@ -1,0 +1,12 @@
+TD3 FlyThruGateAvitary Test Results
+Checkpoint: /home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/td3_model_ep7000.pt
+Episodes: 5
+Avg reward: 1000.46 ± 0.00
+Success rate: 0/5 (0.0%)
+
+Episode details:
+Ep 1: reward=1000.46, len=242, success_time=8.07s
+Ep 2: reward=1000.46, len=242, success_time=8.07s
+Ep 3: reward=1000.46, len=242, success_time=8.07s
+Ep 4: reward=1000.46, len=242, success_time=8.07s
+Ep 5: reward=1000.46, len=242, success_time=8.07s

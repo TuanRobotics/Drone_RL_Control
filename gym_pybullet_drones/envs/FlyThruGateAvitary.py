@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+from matplotlib.pylab import seed
 import numpy as np
 import pybullet as p
 import pkg_resources
@@ -56,6 +57,19 @@ class FlyThruGateAvitary(BaseRLAviary):
             The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
         """
         self.EPISODE_LEN_SEC = 8  # Episode length in seconds
+        self.use_curriculum = use_curriculum # Set True to training with curriculum learning
+        self.curriculum_level = curriculum_level
+        self.max_curriculum_level = max_curriculum_level
+
+        self.GATE_POS = np.array([0, -1.0, 0.0])  # Center of gate
+        self.FINAL_TARGET = np.array([0, -1.5, 0.225]) # Final target position after gate
+        self.passed_gate = False  # Flag for track if gate is passed
+        self.GATE_ORN = None
+
+        self.success_passed = False
+        self.center_gate_passed = False
+        self.time_passed_gate = 0.0
+
         super().__init__(
             drone_model=drone_model,
             num_drones=num_drones,
@@ -70,17 +84,7 @@ class FlyThruGateAvitary(BaseRLAviary):
             act=act,
             output_folder=output_folder
         )
-        self.use_curriculum = use_curriculum
-        self.curriculum_level = curriculum_level
-        self.max_curriculum_level = max_curriculum_level
-
-        self.GATE_POS = np.array([0, -1.0, 0.0])  # Center of gate
-        self.FINAL_TARGET = np.array([0, -1.5, 0.25])
-        self.passed_gate = False  # Flag for track if gate is passed
-        self.GATE_ORN = None
-
-        self.success_passed = False
-        self.center_gate_passed = False
+        
 
 
     ##############################################################################
@@ -105,7 +109,11 @@ class FlyThruGateAvitary(BaseRLAviary):
             The observation space.
 
         """
-        dim = 16 # [pos(3), vel(3), rpy(3), ang_vel(3), gate_pos(3), gate_orn(4)]
+        # If not curriculum learning, always use dim = 16
+        if self.use_curriculum:
+            dim = 19
+        else:
+            dim = 16
         low = np.full((dim,), -np.inf, dtype=np.float32)
         high = np.full((dim,), np.inf, dtype=np.float32)
         return spaces.Box(low=low, high=high, dtype=np.float32)
@@ -128,23 +136,43 @@ class FlyThruGateAvitary(BaseRLAviary):
         rpy = state[7:10]
         vel = state[10:13]
         ang_vel = state[13:16]
-       
-        obs = np.concatenate(
-            [
-                pos, # 3
-                vel, # 3
-                rpy, # 3
-                ang_vel,   # 3
-                self.GATE_ORN,  # 4
-            ]
-        ).astype(np.float32)
+
+        gate_pos = self.GATE_POS + np.array([0.0, -0.15, 0.25])  # Adjust gate position to center
+        rel_pos_to_gate = gate_pos - pos
+
+        if self.use_curriculum:
+            obs = np.concatenate(
+                [
+                    pos, # 3
+                    vel, # 3
+                    rpy, # 3
+                    ang_vel,   # 3
+                    rel_pos_to_gate,  # 3
+                    self.GATE_ORN,  # 4
+                ]
+            ).astype(np.float32)
+        else:
+            obs = np.concatenate(
+                [
+                    pos, # 3
+                    vel, # 3
+                    rpy, # 3
+                    ang_vel,   # 3
+                    self.GATE_ORN,  # 4
+                ]
+            ).astype(np.float32)
         return obs
 
-    def _computeReward(self): 
+    def _computeReward(self):
         # """Reward for gate navigation task"""
         state = self._getDroneStateVector(0)
         norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
-        return 2*max (0, 1 - np.linalg.norm(np.array([0, -2*norm_ep_time, 0.2])-state[0:3]))
+        if np.linalg.norm(state[0:3] - self.FINAL_TARGET) < 0.1:
+            reward = 5.0
+        else: 
+            reward = 0.0
+            
+        return max (0, 2*(1 - np.linalg.norm(np.array([0, -1.5*norm_ep_time, 0.225])-state[0:3]))) + reward
 
     
     def _computeTruncated(self):
@@ -154,10 +182,15 @@ class FlyThruGateAvitary(BaseRLAviary):
             bool: The truncated flag.
         """
         state = self._getDroneStateVector(0)
-        if (abs(state[0]) > 2.0 or abs(state[1]) > 3.0 or state[2] > 2.0 # Truncate when the drone is too far away
+        if (abs(state[0]) > 1.5 or abs(state[1]) > 1.5 or state[2] > 2.0 # Truncate when the drone is too far away
              or abs(state[7]) > .4 or abs(state[8]) > .4 # Truncate when the drone is too tilted
         ):
             return True
+        
+        # if abs(state[1]) > abs(self.GATE_POS[1]) and abs(state[2]) > 0.35:  # Below the gate height before reaching the gate
+        #     return True
+        
+         # Out of time termination
         
         if self.step_counter/self.PYB_FREQ > self.EPISODE_LEN_SEC:
             return True
@@ -174,16 +207,20 @@ class FlyThruGateAvitary(BaseRLAviary):
         state = self._getDroneStateVector(0)
         distance = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
         # Success condition: close to final target
-        if distance < 0.1:
-            self.success_passed = True
+        # if distance < 0.15:
+        #     self.success_passed = True
+        #     return True
+        # Check if passed through center of gate 
+        center = self.GATE_POS + np.array([0.0, -0.1, 0.225])
+        dist = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
+        if dist < 0.1 and state[1] < center[1] and self.center_gate_passed: # Close to final target and beyond gate y position
+            self.center_gate_passed = True
             return True
-        # Check if passed through center of gate
-        center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
 
         dist = np.linalg.norm(state[0:3] - center)
-        if dist < 0.15:
+        if dist < 0.12:
             self.center_gate_passed = True
-        
+
         # Out of time termination
         if self.step_counter/self.PYB_FREQ > self.EPISODE_LEN_SEC:
             return True
@@ -192,22 +229,55 @@ class FlyThruGateAvitary(BaseRLAviary):
     
     # For curriculum learning: adjust initial position based on curriculum level
     def reset(self, seed=None, options=None):
+        # Clear flags
+        # self.success_passed = False
+        self.center_gate_passed = False
+        # self.passed_gate = False
+        # self.time_passed_gate = 0.0
+
         if seed is not None:
             super().reset(seed=seed)
 
         if self.use_curriculum:
             lvl = min(self.curriculum_level, self.max_curriculum_level)
-            gate = self.GATE_POS + np.array([0.0, 0.0, 0.5])
-            forward_offset = 0.1 + 0.15 * lvl
-            if lvl == self.max_curriculum_level:
-                forward_offset = 1.1  # At max level, start far away from gate
+            gate_center = self.GATE_POS + np.array([0.0, -0.15, 0.25])
+
+            # Clear curriculum structure
+            if lvl == 0:
+                # Level 0: Near the gate, no noise
+                forward_offset = 0.15
+                lateral_noise = 0.0
+                vertical_noise = 0.0
+            elif lvl == 1:
+                # Level 1: Near the gate, small noise
+                forward_offset = 0.3
+                lateral_noise = 0.05 * (np.random.rand() - 0.5)
+                vertical_noise = 0.05 * (np.random.rand() - 0.5)
+            elif lvl == 2:
+                forward_offset = 0.5
+                lateral_noise = 0.1 * (np.random.rand() - 0.5)
+                vertical_noise = 0.1 * (np.random.rand() - 0.5)
+            elif lvl == 3:
+                forward_offset = 0.8
+                lateral_noise = 0.15 * (np.random.rand() - 0.5)
+                vertical_noise = 0.15 * (np.random.rand() - 0.5)
+            elif lvl == 4:
+                forward_offset = 1.1
+                lateral_noise = 0.2 * (np.random.rand() - 0.5)
+                vertical_noise = 0.2 * (np.random.rand() - 0.5)
+            else:  # lvl >= 5 (max)
+                forward_offset = 1.5
+                lateral_noise = 0.25 * (np.random.rand() - 0.5)
+                vertical_noise = 0.25 * (np.random.rand() - 0.5)
+                # Can add random yaw orientation
+                self.INIT_RPYS[0, 2] = 0.2 * (np.random.rand() - 0.5)
             
-            # Generate noise for x-axis and y-axis 
-            x_noise = 0.1 * (np.random.rand() - 0.5)
-            z_noise = 0.1 * (np.random.rand() - 0.5)
-            
-            self.INIT_XYZS[0, :] = gate + np.array([x_noise, + forward_offset, z_noise]) 
-            self.INIT_RPYS[0, :] = np.array([0.0, 0.0, 0.0]) 
+            self.INIT_XYZS[0, :] = gate_center + np.array([
+                lateral_noise, 
+                forward_offset, 
+                vertical_noise
+            ])
+            self.INIT_RPYS[0, 0:2] = np.array([0.0, 0.0])
 
         return super().reset(seed=seed, options=options)
     
@@ -219,6 +289,7 @@ class FlyThruGateAvitary(BaseRLAviary):
             "rpy": state[7:10],
             "lin_vel": state[10:13],
             "ang_vel": state[13:16],
+            "time_passed_gate": self.time_passed_gate,
         }
         return info
     

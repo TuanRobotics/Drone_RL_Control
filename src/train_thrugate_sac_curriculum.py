@@ -102,6 +102,7 @@ def train_sac_curriculum(num_episodes=5000,
         state, _ = env.reset()
         episode_reward = 0
         episode_length = 0
+        env.success_passed = False
 
         for step in range(env.EPISODE_LEN_SEC * env.CTRL_FREQ):
             if total_steps < start_steps:
@@ -136,6 +137,7 @@ def train_sac_curriculum(num_episodes=5000,
         episode_lengths.append(episode_length)
 
         success = getattr(env, "center_gate_passed", False)
+
         success_history.append(1 if success else 0)
         _update_curriculum_on_rate(env, success_history,
                                    success_rate_threshold, success_window)
@@ -182,7 +184,6 @@ def train_sac_curriculum(num_episodes=5000,
     print(f"\nTraining completed! Final model saved in {save_dir}")
 
     return agent, episode_rewards, eval_rewards
-
 
 def evaluate_policy(env, agent, num_episodes=5):
     """Evaluate the policy without exploration noise."""
@@ -291,7 +292,7 @@ if __name__ == "__main__":
         curriculum_start_level=0,
         max_curriculum_level=5,
         success_window=30,
-        success_rate_threshold=0.7,
+        success_rate_threshold=0.85,
         gui=False
     )
 

@@ -43,7 +43,7 @@ def test(args):
     DEFAULT_ACT = ActionType('rpm')
     DEFAULT_OUTPUT_FOLDER = './results/results_thrugate_sac'
     if args.curriculum: 
-        DEFAULT_OUTPUT_FOLDER += './results/results_thrugate_sac_curriculum'
+        DEFAULT_OUTPUT_FOLDER = './results/results_thrugate_sac_curriculum'
 
     total_test_episodes = args.episodes
     hidden_dim = 256  # Hidden layer dimension for networks
@@ -129,7 +129,6 @@ def test(args):
                     success_times.append(ep_length / env.CTRL_FREQ) 
                     print(f"Episode {episode + 1} succeeded in {ep_length/env.CTRL_FREQ:.2f} seconds.")
                 break
-
         # Store episode statistics
         test_rewards.append(ep_reward)
         test_lengths.append(ep_length)
@@ -186,7 +185,7 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test SAC agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate/sac_20251214_113410/sac_model_ep9000.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate_curriculum/sac_20251217_142454/sac_model_ep4000.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=5,
                        help='Number of test episodes')
@@ -194,7 +193,7 @@ if __name__ == '__main__':
                        help='Record video of the test')
     parser.add_argument('--gui', type=bool, default=True,
                        help='Enable GUI visualization')
-    parser.add_argument('--curriculum', type=bool, default=False,
+    parser.add_argument('--curriculum', type=bool, default=True,
                        help='Use curriculum learning during testing')
 
     args = parser.parse_args()

@@ -36,6 +36,8 @@ def test_agent(args):
     DEFAULT_GUI = True
     DEFAULT_RECORD_VIDEO = True
     DEFAULT_OUTPUT_FOLDER = './results/results_test_td3_thrugate'
+    if args.curriculum:
+        DEFAULT_OUTPUT_FOLDER = './results/results_test_td3_thrugate_curriculum'
     if not os.path.exists(DEFAULT_OUTPUT_FOLDER):
         os.makedirs(DEFAULT_OUTPUT_FOLDER)
     DEFAULT_COLAB = False
@@ -165,7 +167,7 @@ def test_agent(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test TD3 agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate/td3_20251216_135354/td3_model_final.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/td3_training_thrugate_curriculum/td3_20251217_015459/td3_model_ep7000.pt',
                        help='Path to the trained model checkpoint')
     parser.add_argument('--episodes', type=int, default=5,
                        help='Number of test episodes')
@@ -173,6 +175,8 @@ if __name__ == '__main__':
                        help='Record video of the test')
     parser.add_argument('--gui', type=bool, default=True,
                        help='Enable GUI visualization')
+    parser.add_argument('--curriculum', type=bool, default=True,
+                       help='Use curriculum learning during testing')
 
     args = parser.parse_args()
 

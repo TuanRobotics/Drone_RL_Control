@@ -1,0 +1,16 @@
+SAC FlyThruGateAvitary Test Results
+Checkpoint: /home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate_curriculum/sac_20251217_015457/sac_model_ep7000.pt
+Episodes: 5
+Avg reward: 177.37 ± 0.00
+Success rate: 5/5 (100.0%)
+Avg time_passed_gate: 0.00s ± 0.00s
+Best: 0.00s | Worst: 0.00s
+
+Episode details:
+Ep 1: reward=177.37, len=242, time_passed_gate=0.00s
+Ep 2: reward=177.37, len=242, time_passed_gate=0.00s
+Ep 3: reward=177.37, len=242, time_passed_gate=0.00s
+Ep 4: reward=177.37, len=242, time_passed_gate=0.00s
+Ep 5: reward=177.37, len=242, time_passed_gate=0.00s
+
+Time passed gate for successes (s): 0.00, 0.00, 0.00, 0.00, 0.00
