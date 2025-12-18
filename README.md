@@ -44,7 +44,7 @@ $$
 r_t =
 \begin{cases}
 10, & \big(\lVert p_t - p_f \rVert < \varepsilon\big)\ \land\ (c_t = 1) \\
-\max\!\left(0,\ 1 - \left\lVert p_t - p_{\mathrm{ref}}(\tau_t)\right\rVert\right), & \text{otherwise}
+\max\left(0,\ 1 - \left\lVert p_t - p_{\mathrm{ref}}(\tau_t)\right\rVert\right), & \text{otherwise}
 \end{cases}
 $$
 
