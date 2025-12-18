@@ -61,13 +61,14 @@ Step-by-step Setup From Scratch:
 ```
 git clone git@github.com:TuanRobotics/Drone_RL_Control.git
 cd Drone_RL_Control
-pip install -e .
 ```
 2. Create a virtual environment
 ```
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv env
+source env/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
+pip install -e .
 ```
 3. Command for training and testing
 Run training with the desired algorithm:
@@ -87,7 +88,10 @@ Testing supports PPO / SAC / TD3 via the <METHOD> placeholder:
 ```
 python3 test_thrugate_<METHOD>.py --model_path <PATH_TO_MODEL> --use_curriculum <True|False>
 ```
-
+Example: 
+```
+python3 test_thrugate_td3.py --model_path  ./log_dir/td3_training_thrugate_curriculum/td3_20251217_161813/td3_model_ep5000.pt --curriculum True 
+```
 
 ## **5.Demo Key Results**
 This section summarizes the main training outcomes for the Go-Through Narrow Space task. We report results for PPO, TD3, SAC under the same environment settings, and additionally evaluate TD3 + Curriculum Learning and SAC + Curriculum Learning to measure how curriculum improves stability and time training. Qualitative results (GIF/videos) and quantitative plots (reward curves, success rate, episode length, etc.) are provided below.
