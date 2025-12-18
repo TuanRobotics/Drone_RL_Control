@@ -53,7 +53,8 @@ $$
 + OS: Ubuntu 22.04 / 24.04 (recommended)
 + Python: >= 3.10
 + Simulator: PyBullet (via gym-pybullet-drones)
-+ GPU: RTX5060 8GB
++ - Hardware: CPU works; GPU optional for faster training
+
 > Notes: Training can run headless (no GUI) for speed.
 Step-by-step Setup From Scratch:
 1. Clone the repository
