@@ -92,7 +92,7 @@ Example:
 python3 test_thrugate_td3.py --model_path  ./log_dir/td3_training_thrugate_curriculum/td3_20251217_161813/td3_model_ep5000.pt --curriculum True 
 ```
 
-## **5.Demo Key Results**
+## **5. Demo Key Results**
 This section summarizes the main training outcomes for the Go-Through Narrow Space task. We report results for PPO, TD3, SAC under the same environment settings, and additionally evaluate TD3 + Curriculum Learning and SAC + Curriculum Learning to measure how curriculum improves stability and time training. Qualitative results (GIF/videos) and quantitative plots (reward curves, success rate, episode length, etc.) are provided below.
 
 | SAC | TD3 | PPO |
@@ -112,8 +112,28 @@ This section summarizes the main training outcomes for the Go-Through Narrow Spa
 |---:|---:|
 | [<img src="./src/results/results_thrugate_sac_curriculum/final_oke.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate_curriculum/output.gif" width="260">](./videos/demo2.mp4)
 
+### **6. Project Structure**
 
-### **6. References**
+```text
+DRONE_RL_CONTROL/
+├── agents/              # RL algorithms (TD3, SAC, PPO), training/evaluation loops, replay buffer, utils
+├── architectures/       # Neural network architectures (Actor/Critic, MLP configs, normalization, etc.) - Not use
+├── docs/                # Additional documentations
+├── gym_pybullet_drones/ # Local fork / wrapper of gym-pybullet-drones (env base, physics, assets)
+├── log_dir/             # Training logs, checkpoints
+├── notebooks/           # Analysis notebooks, for testing env
+├── src/                 # Main entry scripts (train/test), custom environments (FlyThruGateAviary), reward & curriculum, testing results
+├── venv/                # Local virtual environment
+├── .github/             # CI/configs (workflows, templates)
+├── .gitignore           # Git ignore rules
+├── CITATION.cff         # Citation metadata for referencing this project
+├── LICENSE              # License information
+├── pyproject.toml       # Project configuration (packaging, formatting, dependencies if used)
+├── README.md            # Project overview and usage
+└── requirements.txt     # Python dependencies (pip install -r requirements.txt)
+```
+
+### **7. References**
 
 [1] Panerati et al., “Learning to Fly—A Gym Environment with PyBullet Physics”, arXiv 2021
 
