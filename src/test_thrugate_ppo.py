@@ -12,7 +12,7 @@ from agents.ppo_agent import PPO
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.envs.HoverAviary import HoverAviary
 from gym_pybullet_drones.envs.MultiHoverAviary import MultiHoverAviary
-from gym_pybullet_drones.envs.FlyThrugateNewAviary import FlyThrugateNewAviary
+from gym_pybullet_drones.envs.FlyThruGateAvitary import FlyThruGateAvitary
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import ObservationType, ActionType
 
@@ -64,7 +64,7 @@ def test(args):
         os.makedirs(filename+'/')
     
     
-    env = FlyThrugateNewAviary(gui=DEFAULT_GUI,
+    env = FlyThruGateAvitary(gui=DEFAULT_GUI,
                          obs=DEFAULT_OBS,
                          act=DEFAULT_ACT,
                          record=DEFAULT_RECORD_VIDEO,
@@ -73,7 +73,7 @@ def test(args):
                          )
 
     # state space dimension
-    state_dim = 12 # 19 if using curriculum 
+    state_dim = 16 # 19 if using curriculum 
     # action space dimension
     action_dim = 4
 
@@ -170,7 +170,7 @@ def test(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Test PPO agent for drone gate navigation')
     parser.add_argument('--model_path', type=str,
-                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251217_135727/ppo_model_ep24864.pt',
+                       default='/home/tuan/Desktop/drone_rl_control/log_dir/ppo_training_thrugate/ppo_20251218_020209/ppo_model_final.pt',
                        help='Path to the trained model checkpoint')
 
     args = parser.parse_args()

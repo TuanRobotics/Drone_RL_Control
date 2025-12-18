@@ -238,7 +238,17 @@ class FlyThruGateAvitary(BaseRLAviary):
         self.center_gate_passed = False
         # self.passed_gate = False
         # self.time_passed_gate = 0.0
-
+        # forward_offset = 1.2
+        gate_center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
+    
+        self.INIT_XYZS[0, :] = gate_center + np.array([
+            0.1, 
+            1.2, 
+            0.1
+        ])
+        self.INIT_RPYS[0, 2] = 0.2 
+        self.INIT_RPYS[0, 0:2] = np.array([0.0, 0.0])
+        
         if seed is not None:
             super().reset(seed=seed)
 

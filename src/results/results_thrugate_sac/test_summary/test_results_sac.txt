@@ -1,21 +1,21 @@
 SAC FlyThruGateAvitary Test Results
-Checkpoint: /home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate/sac_20251216_135343/sac_model_ep9000.pt
+Checkpoint: /home/tuan/Desktop/drone_rl_control/log_dir/sac_training_thrugate/sac_20251214_113410/sac_model_ep9000.pt
 Episodes: 10
-Avg reward: 96.70 ± 0.00
+Avg reward: 187.42 ± 0.00
 Success rate: 10/10 (100.0%)
-Avg center-pass time: 2.87s ± 0.00s
-Best center: 2.87s | Worst center: 2.87s
+Avg center-pass time: 4.00s ± 0.00s
+Best center: 4.00s | Worst center: 4.00s
 
 Episode details:
-Ep 1: reward=96.70, len=151, center_time=2.87s
-Ep 2: reward=96.70, len=151, center_time=2.87s
-Ep 3: reward=96.70, len=151, center_time=2.87s
-Ep 4: reward=96.70, len=151, center_time=2.87s
-Ep 5: reward=96.70, len=151, center_time=2.87s
-Ep 6: reward=96.70, len=151, center_time=2.87s
-Ep 7: reward=96.70, len=151, center_time=2.87s
-Ep 8: reward=96.70, len=151, center_time=2.87s
-Ep 9: reward=96.70, len=151, center_time=2.87s
-Ep 10: reward=96.70, len=151, center_time=2.87s
+Ep 1: reward=187.42, len=191, center_time=4.00s
+Ep 2: reward=187.42, len=191, center_time=4.00s
+Ep 3: reward=187.42, len=191, center_time=4.00s
+Ep 4: reward=187.42, len=191, center_time=4.00s
+Ep 5: reward=187.42, len=191, center_time=4.00s
+Ep 6: reward=187.42, len=191, center_time=4.00s
+Ep 7: reward=187.42, len=191, center_time=4.00s
+Ep 8: reward=187.42, len=191, center_time=4.00s
+Ep 9: reward=187.42, len=191, center_time=4.00s
+Ep 10: reward=187.42, len=191, center_time=4.00s
 
-Center pass times (s): 2.87, 2.87, 2.87, 2.87, 2.87, 2.87, 2.87, 2.87, 2.87, 2.87
+Center pass times (s): 4.00, 4.00, 4.00, 4.00, 4.00, 4.00, 4.00, 4.00, 4.00, 4.00

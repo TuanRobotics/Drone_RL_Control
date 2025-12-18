@@ -3,13 +3,20 @@
 - Benchmark SAC / TD3 / PPO under sparse reward vs. reward shaping, with/without curriculum learning.
 - Objective: Reliable gate passage → terminal region, measured by success rate, completion time, and stability.
 
-# Motivation: 
-
-## Participants
+## **1. Participants**
 - Dinh Ngoc Tuan, 291184
 - Nguyen Thai Son, 291124
 
-## **Description of the Conducted Research**
+## **2. Summary Results (TD3 vs SAC)**
+
+**Evaluation setup.** For each algorithm (TD3, SAC), we ran **10 test episodes** under **identical initial conditions** (same spawn point) and report the metrics for **Reward Shaping (RS)** and **RS + Curriculum Learning (RS+CC)** in the table below.
+
+| Algorithm | Avg reward (RS) | Avg reward (RS+CC) | Success rate (RS) | Success rate (RS+CC) | Avg center-pass time (RS) | Avg center-pass time (RS+CC) |
+|---|---:|---:|---:|---:|---:|---:|
+| TD3 | 206.72 | 154.42 | 100% | 100% | 3.83 | **2.07** |
+| SAC | 187.42 | **210.28** | 100% | 100% | 4.00 | 5.10 |
+
+## **3. Description of the Conducted Research**
 - **Problem formulation:** State-based narrow-gate navigation (no vision) with direct RPM control.  
 - **Reward design:** Sparse success reward with dense shaping terms. 
 - **Curriculum design:** Reverse curriculum (difficulty scheduling) to gradually expand the initial-state distribution.  
@@ -40,7 +47,7 @@ $$
 
 
 
-## Installation and Deployment
+## **4. Installation and Deployment**
 + OS: Ubuntu 22.04 / 24.04 (recommended)
 + Python: >= 3.10
 + Simulator: PyBullet (via gym-pybullet-drones)
@@ -79,7 +86,7 @@ python3 test_thrugate_<METHOD>.py --model_path <PATH_TO_MODEL> --use_curriculum 
 ```
 
 
-## Demo Key Results
+## **5.Demo Key Results**
 This section summarizes the main training outcomes for the Go-Through Narrow Space task. We report results for PPO, TD3, SAC under the same environment settings, and additionally evaluate TD3 + Curriculum Learning and SAC + Curriculum Learning to measure how curriculum improves stability and time training. Qualitative results (GIF/videos) and quantitative plots (reward curves, success rate, episode length, etc.) are provided below.
 
 | SAC | TD3 | PPO |
@@ -92,24 +99,16 @@ This section summarizes the main training outcomes for the Go-Through Narrow Spa
 
 | SAC | TD3 | PPO |
 |---:|---:|---:|
-| [<img src="./src/results/results_thrugate_sac/demo1.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate/demo1.gif" width="260">](./videos/demo2.mp4) | [<img src="./videos/demo3.png" width="260">](./videos/demo3.mp4) |
+| [<img src="./src/results/results_thrugate_sac/final_oke.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate/demo1.gif" width="260">](./videos/demo2.mp4) | [<img src="./src/results/results_thrugate_ppo/final_ok.gif" width="260">](./videos/demo3.mp4) |
 
 
 | SAC Curriculum | TD3 Curriculum |
 |---:|---:|
-| [<img src="./src/results/results_thrugate_sac/demo1.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate/demo1.gif" width="260">](./videos/demo2.mp4)
+| [<img src="./src/results/results_thrugate_sac_curriculum/final_oke.gif" width="260">](./videos/demo1.mp4) | [<img src="./src/results/results_test_td3_thrugate_curriculum/output.gif" width="260">](./videos/demo2.mp4)
 
-### Summary Table
-<!-- 
-| Method | Curriculum | Best Success Rate (Eval) | Avg. Return (Eval) | Stability (Qual.) | Notes |
-|:------|:----------:|:------------------------:|:------------------:|:-----------------:|:------|
-| PPO   | No         | XX%                      | XX                 | Medium            | Fast training; can be sensitive to reward shaping |
-| TD3   | No         | XX%                      | XX                 | Medium–High        | Strong continuous-control baseline |
-| SAC   | No         | XX%                      | XX                 | High              | Robust exploration, stable learning curves |
-| TD3   | Yes        | XX%                      | XX                 | High              | Curriculum improves convergence & success consistency |
-| SAC   | Yes        | XX%                      | XX                 | Very High         | Best overall reliability under domain randomization | -->
 
-### References
+### **6. References**
+
 [1] Panerati et al., “Learning to Fly—A Gym Environment with PyBullet Physics”, arXiv 2021
 
 [2] W. Xin, Y. Chen, and W. Zhu, “A Survey on Curriculum Learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence, vol. 44, no. 9, pp. 4555–4576, 2022, doi: 10.1109/TPAMI.2021.3069908​

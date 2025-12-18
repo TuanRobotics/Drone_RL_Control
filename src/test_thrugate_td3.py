@@ -52,7 +52,7 @@ def test_agent(args):
                            act=DEFAULT_ACT,
                            record=DEFAULT_RECORD_VIDEO,
                            output_folder=DEFAULT_OUTPUT_FOLDER,
-                           use_curriculum=True,
+                           use_curriculum=args.curriculum,
                            curriculum_level=5)
 
     obs, info = env.reset()
@@ -186,7 +186,7 @@ if __name__ == '__main__':
                        help='Record video of the test')
     parser.add_argument('--gui', type=bool, default=True,
                        help='Enable GUI visualization')
-    parser.add_argument('--curriculum', type=bool, default=True,
+    parser.add_argument('--curriculum', type=bool, default=False,
                        help='Use curriculum learning during testing')
 
     args = parser.parse_args()
