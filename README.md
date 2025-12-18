@@ -49,7 +49,6 @@ r_t =
 $$
 
 
-
 ## **4. Installation and Deployment**
 + OS: Ubuntu 22.04 / 24.04 (recommended)
 + Python: >= 3.10
@@ -127,4 +126,8 @@ This section summarizes the main training outcomes for the Go-Through Narrow Spa
 [5] T. Haarnoja, A. Zhou, P. Abbeel, and S. Levine, “Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor,” in Proc. ICML (PMLR), vol. 80, 2018. (arXiv:1801.01290)
 
 [6] S. Fujimoto, H. van Hoof, and D. Meger, “Addressing Function Approximation Error in Actor-Critic Methods,” in Proc. ICML (PMLR), vol. 80, 2018. (arXiv:1802.09477)
+
+[7] Mathias Bos, Wilm Decre, Jan Swevers, Goele Pipeleers, Multi-stage Optimal Control Problem Formulation for Drone Racing Through Gates and Tunnels, IEEE 17th International Conference on Advanced Motion Control (AMC), 2022
+
+[8] Yunlong Song, Angel Romero, Matthias Mueller, Vladlen Koltun, Davide Scaramuzza, Reaching the Limit in Autonomous Racing: Optimal Control versus Reinforcement Learning, Science Robotics, 2023 (arXiv:2310.10943)
 
