@@ -10,7 +10,6 @@ logs/
 
 # NumPy saves and videos
 tmp/
-
 .github/
 
 # Learning results
