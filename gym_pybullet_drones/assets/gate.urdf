@@ -13,19 +13,40 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./assets/gate.obj" scale=" .018 .018 .018"/>
+        <mesh filename="./assets/gate.obj" scale=" .006 .0083333 .006"/>
       </geometry>
       <material name="grey">
         <color rgba="1.0. 1.0. 0.5. 1"/>
       </material>
     </visual>
 
-    <!-- <collision>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.111429"/>
       <geometry>
-        <mesh filename="./tinker.obj" scale=" .06 .06 .06"/>
+        <box size="0.012 0.25 0.017142"/>
       </geometry>
-    </collision> -->
+    </collision>
+
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.008571"/>
+      <geometry>
+        <box size="0.012 0.25 0.017142"/>
+      </geometry>
+    </collision>
+
+    <collision>
+      <origin rpy="0 0 0" xyz="0 -0.105979 0.06"/>
+      <geometry>
+        <box size="0.012 0.038042 0.085716"/>
+      </geometry>
+    </collision>
+
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0.105979 0.06"/>
+      <geometry>
+        <box size="0.012 0.038042 0.085716"/>
+      </geometry>
+    </collision>
 
   </link>
 

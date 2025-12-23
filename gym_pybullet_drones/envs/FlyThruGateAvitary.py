@@ -61,15 +61,20 @@ class FlyThruGateAvitary(BaseRLAviary):
         self.curriculum_level = curriculum_level
         self.max_curriculum_level = max_curriculum_level
 
-        self.GATE_POS = np.array([0, -1.0, 0.0])  # Center of gate
-        self.FINAL_TARGET = np.array([0, -1.6, 0.25]) # Final target position after gate
+        self.GATE_POS = np.array([0, 0.0, 0.0])  # Center of gate
+        self.WAYPOINT = np.array([0.0, 0.0, 0.0])
+        self.CENTER_GATE = np.array([0.0, 0.0, 0.0])
         self.passed_gate = False  # Flag for track if gate is passed
         self.GATE_ORN = None
 
-        self.success_passed = False
+        # self.success_passed = False
         self.center_gate_passed = False
+        self.way_point_success = True 
         self.time_passed_gate = 0.0
-        self.threshold_success = 0.15  # Distance threshold to consider gate passed
+        self.threshold_success = 0.005  # Distance threshold to consider gate passed
+
+        # Setup for checking collision with gate
+        self.GATE_ID = None # Will be set when loading the gate URDF
 
         super().__init__(
             drone_model=drone_model,
@@ -86,22 +91,38 @@ class FlyThruGateAvitary(BaseRLAviary):
             output_folder=output_folder
         )
         
-
-
     ##############################################################################
     # Load urdf to create the gate 
-    def _addObstacles(self):
-
+    def _addObstacles(self): 
+        pos = [0.0, -1.0, 0.2]
+        tilt = np.deg2rad(30.0)  # 30°
+        orn = p.getQuaternionFromEuler([tilt, 0.0, 1.57])
         super()._addObstacles()
-        boxId = p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
-                   [0.0, -1.0, 0.0],
-                   p.getQuaternionFromEuler([0, 0, 1.57]),
-                   physicsClientId=self.CLIENT
-                   )
-        self.GATE_POS, self.GATE_ORN = p.getBasePositionAndOrientation(boxId)
-            
+        self.GATE_ID = p.loadURDF(
+            pkg_resources.resource_filename('gym_pybullet_drones', 'assets/gate.urdf'),
+            pos,
+            orn,
+            physicsClientId=self.CLIENT
+        )
+        self.GATE_POS, self.GATE_ORN = p.getBasePositionAndOrientation(self.GATE_ID, physicsClientId=self.CLIENT)
+        # print(f"Position of gate: {self.GATE_POS}")
+        # self.WAYPOINT = self.GATE_POS + np.array([0.0, -1.0, 0.0])
+        self.CENTER_GATE = self.GATE_POS + np.array([0.0, 0.0, 0.06])
         
-    def _observationSpace(self):
+        self.CENTER_GATE = self.GATE_POS + np.array([0.0, 0.0, 0.06])
+
+        rot = np.array(p.getMatrixFromQuaternion(self.GATE_ORN)).reshape(3, 3)
+        gate_normal = rot @ np.array([1.0, 0.0, 0.0])  # local +X -> world 
+
+        self.WAYPOINT = self.CENTER_GATE - 0.5 * gate_normal
+        # Test
+        # print(f"Gate normal: {gate_normal}")
+        # print(f"Center gate: {self.CENTER_GATE}")
+        # x, y, z = self.WAYPOINT
+        # print(f"Waypoint: [{x:.2f}, {y:.2f}, {z:.2f}]") 
+
+        
+    def _observationSpace(self): 
         """Returns the observation space of the environment.
 
         Returns
@@ -114,7 +135,7 @@ class FlyThruGateAvitary(BaseRLAviary):
         if self.use_curriculum:
             dim = 19
         else:
-            dim = 16
+            dim = 19
         low = np.full((dim,), -np.inf, dtype=np.float32)
         high = np.full((dim,), np.inf, dtype=np.float32)
         return spaces.Box(low=low, high=high, dtype=np.float32)
@@ -133,13 +154,12 @@ class FlyThruGateAvitary(BaseRLAviary):
         """
 
         state = self._getDroneStateVector(0)
-        pos = state[0:3]
+        pos = state[0:3] 
         rpy = state[7:10]
         vel = state[10:13]
         ang_vel = state[13:16]
 
-        gate_pos = self.GATE_POS + np.array([0.0, -0.15, 0.25])  # Adjust gate position to center
-        rel_pos_to_gate = gate_pos - pos
+        rel_pos_to_gate = self.CENTER_GATE - pos
 
         if self.use_curriculum:
             obs = np.concatenate(
@@ -159,29 +179,53 @@ class FlyThruGateAvitary(BaseRLAviary):
                     vel, # 3
                     rpy, # 3
                     ang_vel,   # 3
+                    rel_pos_to_gate,
                     self.GATE_ORN,  # 4
                 ]
             ).astype(np.float32)
         return obs
 
     def _computeReward(self):
+
         # """Reward for gate navigation task"""
-        state = self._getDroneStateVector(0)
+        state = self._getDroneStateVector(0) 
         norm_ep_time = (self.step_counter/self.PYB_FREQ) / self.EPISODE_LEN_SEC
-
+        # print(f"Gate position: {self.GATE_POS}")
         # Base reward: encourage forward movement towards gate
-        center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
-        distance = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
+        # Plus a offset depending on which size of gate in 3D space 
 
-        dist = np.linalg.norm(state[0:3] - center)
+        dist = np.linalg.norm(state[0:3] - self.CENTER_GATE)
+        dis_to_way_point = np.linalg.norm(state[0:3] - self.WAYPOINT)
+
         if dist < self.threshold_success:
             self.center_gate_passed = True
 
-        if distance < self.threshold_success and self.center_gate_passed: # Close to final target and beyond gate y position
-            self.center_gate_passed = True
+        if dis_to_way_point < 0.1:
+            self.way_point_success = True 
+
+        # Close to target and have no collision with gate
+        if self.center_gate_passed and self.way_point_success and self._check_collision_with_gate(0)==False: 
             return 10.0  # Success reward
-            
-        return max (0, (1 - np.linalg.norm(np.array([0, -1.5*norm_ep_time, 0.225])-state[0:3])))
+
+        if self._check_collision_with_gate(0):
+            print(f"Collision with gate detected at position: {state[0:3]}")
+            return -10.0  # Collision penalty
+        # else:
+        #     return -5.0  
+        return max (0, (1 - np.linalg.norm(self.CENTER_GATE-state[0:3])))  - norm_ep_time * 0.001  # Reward for getting closer to gate, penalize time taken
+
+    def _check_collision_with_gate(self, drone_idx=0) -> bool:
+        drone_id = self.DRONE_IDS[drone_idx]
+        
+        cps = p.getContactPoints(
+            bodyA=drone_id,
+            bodyB=self.GATE_ID,
+            physicsClientId=self.CLIENT
+        )
+        
+        actual_collisions = [cp for cp in cps if cp[8] <= 0.0]  
+    
+        return len(actual_collisions) > 0
 
     def _computeTruncated(self):
         """Compute the truncated flag for the current step.
@@ -190,16 +234,22 @@ class FlyThruGateAvitary(BaseRLAviary):
             bool: The truncated flag.
         """
         state = self._getDroneStateVector(0)
-        if (abs(state[0]) > 1.5 or abs(state[1]) > 1.5 or state[2] > 2.0 # Truncate when the drone is too far away
-             or abs(state[7]) > .4 or abs(state[8]) > .4 # Truncate when the drone is too tilted
-        ):
-            return True
-        
-        # if abs(state[1]) > abs(self.GATE_POS[1]) and abs(state[2]) > 0.35:  # Below the gate height before reaching the gate
+        # if (abs(state[0]) > self.GATE_POS[0] or abs(state[1]) > 1.5 or state[2] > 2.0 # Truncate when the drone is too far away
+        #      or abs(state[7]) > .4 or abs(state[8]) > .4 # Truncate when the drone is too tilted
+        # ):
         #     return True
-        
-         # Out of time termination
-        
+        # Collision with gate
+        if self._check_collision_with_gate(drone_idx=0):
+            return True
+        # Out of bounds termination
+        if np.linalg.norm(state[0:2] - self.CENTER_GATE[0:2]) > 6.0 or state[2] > 5.0:  # Too far from gate position
+            return True
+        # Excessive pitch or roll
+        if abs(state[7]) > 3*np.pi/8 or abs(state[8]) > 3*np.pi/8:  
+            return True
+        # Ground collision 
+        if abs(state[2]) < 0.15:
+            return True
         if self.step_counter/self.PYB_FREQ > self.EPISODE_LEN_SEC:
             return True
         else:
@@ -214,16 +264,12 @@ class FlyThruGateAvitary(BaseRLAviary):
         # Success condition: passed through the gate and close to final target
         state = self._getDroneStateVector(0)
 
-        center = self.GATE_POS + np.array([0.0, -0.1, 0.225])
-        distance = np.linalg.norm(state[0:3] - self.FINAL_TARGET)
+        distance = np.linalg.norm(state[0:3] - self.CENTER_GATE)
 
-        if distance < 0.1 and self.center_gate_passed: # Close to final target and beyond gate y position
+        # Go to waypoint and through center gate 
+        if distance < 0.05 and self.center_gate_passed and self.way_point_success: 
             self.center_gate_passed = True
             return True
-
-        dist = np.linalg.norm(state[0:3] - center)
-        if dist < 0.15:
-            self.center_gate_passed = True
 
         # Out of time termination
         if self.step_counter/self.PYB_FREQ > self.EPISODE_LEN_SEC:
@@ -233,20 +279,20 @@ class FlyThruGateAvitary(BaseRLAviary):
     
     # For curriculum learning: adjust initial position based on curriculum level
     def reset(self, seed=None, options=None):
-        # Clear flags
-        # self.success_passed = False
+        
         self.center_gate_passed = False
-        # self.passed_gate = False
-        # self.time_passed_gate = 0.0
-        # forward_offset = 1.2
-        gate_center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
-    
-        self.INIT_XYZS[0, :] = gate_center + np.array([
-            0.1, 
-            1.2, 
-            0.1
-        ])
-        self.INIT_RPYS[0, 2] = 0.2 
+        self.way_point_success = False
+        
+        # Make randomization for initial state 
+
+        # Randomization of initial position around the gate
+        # Random initial position near the gate
+        x = np.random.uniform(-2.0, 2.0)
+        y = np.random.uniform(-2.0, 2.0)
+        z = np.random.uniform(0.3, 2.0)
+
+        self.INIT_XYZS[0, :] = self.CENTER_GATE + np.array([x, y, z])
+        self.INIT_RPYS[0, 2] = 0.2 * (np.random.rand() - 0.5)
         self.INIT_RPYS[0, 0:2] = np.array([0.0, 0.0])
         
         if seed is not None:
@@ -254,7 +300,6 @@ class FlyThruGateAvitary(BaseRLAviary):
 
         if self.use_curriculum:
             lvl = min(self.curriculum_level, self.max_curriculum_level)
-            gate_center = self.GATE_POS + np.array([0.0, -0.1, 0.25])
 
             # Clear curriculum structure
             if lvl == 0:
@@ -297,7 +342,7 @@ class FlyThruGateAvitary(BaseRLAviary):
                 # Can add random yaw orientation
                 self.INIT_RPYS[0, 2] = 0.2 # 0.2 * (np.random.rand() - 0.5)
             
-            self.INIT_XYZS[0, :] = gate_center + np.array([
+            self.INIT_XYZS[0, :] = self.CENTER_GATE + np.array([
                 lateral_noise, 
                 forward_offset, 
                 vertical_noise
